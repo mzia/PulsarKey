@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.mzia.CosmicFido2</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>COSMIC YubiKey Manager</name>
+  <summary>YubiKey FIDO2 and Biometric PAM Authentication Manager for COSMIC</summary>
+  <developer id="io.github.mzia">
+    <name>Pop!_OS COSMIC Community</name>
+  </developer>
+  <description>
+    <p>
+      COSMIC YubiKey Manager is a native Rust utility designed specifically for Pop!_OS COSMIC desktop.
+      It enables robust hardware-backed FIDO2 and biometric (YubiKey C Bio) authentication for both the COSMIC Lockscreen/Greeter and sudo command execution.
+    </p>
+    <p>Key capabilities:</p>
+    <ul>
+      <li>Native COSMIC Panel Status Applet with real-time hardware connection monitoring</li>
+      <li>Instant biometric unlock on lockscreen (with Space+Enter activation to eliminate greeter lag)</li>
+      <li>Passwordless or touch-confirmed sudo privilege escalation</li>
+      <li>One-click biometric sensor testing and diagnostic notifications</li>
+      <li>Full automated setup, key enrollment, and clean uninstallation</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.mzia.CosmicFido2.desktop</launchable>
+  <icon type="stock">io.github.mzia.CosmicFido2</icon>
+  <url type="homepage">https://github.com/mzia/cosmic-fido2</url>
+  <url type="bugtracker">https://github.com/mzia/cosmic-fido2/issues</url>
+  <url type="vcs-browser">https://github.com/mzia/cosmic-fido2</url>
+  <categories>
+    <category>Utility</category>
+    <category>System</category>
+    <category>Security</category>
+  </categories>
+  <keywords>
+    <keyword>yubikey</keyword>
+    <keyword>fido2</keyword>
+    <keyword>u2f</keyword>
+    <keyword>biometric</keyword>
+    <keyword>cosmic</keyword>
+    <keyword>pam</keyword>
+  </keywords>
+  <provides>
+    <binary>cosmic-fido2</binary>
+  </provides>
+  <releases>
+    <release version="1.0.0" date="2026-09-14">
+      <description>
+        <p>Initial release with COSMIC Greeter support, YubiKey C Bio hardware user verification, and StatusNotifierItem desktop panel applet.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1" />
+</component>

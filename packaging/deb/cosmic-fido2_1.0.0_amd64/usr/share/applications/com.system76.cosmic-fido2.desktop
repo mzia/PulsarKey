@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=COSMIC YubiKey Manager
+GenericName=FIDO2 Security Key Manager
+Comment=Manage YubiKey FIDO2 & Biometric authentication for Pop!_OS COSMIC
+Exec=cosmic-term -e bash -c "cosmic-fido2 status; echo ''; read -p 'Press Enter to exit...'"
+Icon=com.system76.cosmic-fido2
+Terminal=false
+Type=Application
+Categories=Settings;System;Security;Utility;
+Keywords=yubikey;fido2;u2f;security;biometric;cosmic;pam;greeter;
+StartupNotify=true

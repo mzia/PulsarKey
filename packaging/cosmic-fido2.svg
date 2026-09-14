@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e2530" />
+      <stop offset="100%" stop-color="#0f1318" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#48b9c7" />
+      <stop offset="100%" stop-color="#2d82b7" />
+    </linearGradient>
+    <linearGradient id="keyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2c3440" />
+      <stop offset="100%" stop-color="#1a1f26" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f5d061" />
+      <stop offset="100%" stop-color="#e6af2e" />
+    </linearGradient>
+    <linearGradient id="sensorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e5a3" />
+      <stop offset="100%" stop-color="#00a876" />
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle for COSMIC / Pop!_OS -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgGrad)" stroke="#3a4556" stroke-width="4" />
+
+  <!-- Shield Shape in Background -->
+  <path d="M256 70 C340 70 400 90 400 160 C400 280 320 370 256 420 C192 370 112 280 112 160 C112 90 172 70 256 70 Z" 
+        fill="url(#shieldGrad)" opacity="0.15" />
+  <path d="M256 70 C340 70 400 90 400 160 C400 280 320 370 256 420 C192 370 112 280 112 160 C112 90 172 70 256 70 Z" 
+        fill="none" stroke="url(#shieldGrad)" stroke-width="6" opacity="0.3" />
+
+  <!-- YubiKey Silhouette -->
+  <g filter="url(#dropShadow)">
+    <!-- USB-C connector tip -->
+    <rect x="226" y="110" width="60" height="50" rx="10" fill="url(#goldGrad)" stroke="#b8860b" stroke-width="2" />
+    <line x1="242" y1="120" x2="242" y2="145" stroke="#7a5905" stroke-width="3" stroke-linecap="round" />
+    <line x1="256" y1="120" x2="256" y2="145" stroke="#7a5905" stroke-width="3" stroke-linecap="round" />
+    <line x1="270" y1="120" x2="270" y2="145" stroke="#7a5905" stroke-width="3" stroke-linecap="round" />
+
+    <!-- Main Key Body -->
+    <rect x="180" y="150" width="152" height="230" rx="28" fill="url(#keyGrad)" stroke="#4a5568" stroke-width="4" />
+
+    <!-- Keyhole / Loop at bottom -->
+    <circle cx="256" cy="340" r="18" fill="#0f1318" stroke="#3a4556" stroke-width="4" />
+
+    <!-- Biometric Sensor (Center touch ring) -->
+    <circle cx="256" cy="235" r="42" fill="#14181f" stroke="#3a4556" stroke-width="4" />
+    <circle cx="256" cy="235" r="34" fill="none" stroke="url(#sensorGrad)" stroke-width="4" stroke-dasharray="8 4" />
+
+    <!-- Fingerprint / Biometric Waves inside Sensor -->
+    <path d="M256 220 A15 15 0 0 1 268 235" fill="none" stroke="#00e5a3" stroke-width="3" stroke-linecap="round" />
+    <path d="M244 235 A12 12 0 0 1 256 226 A12 12 0 0 1 264 238" fill="none" stroke="#00e5a3" stroke-width="3" stroke-linecap="round" />
+    <path d="M250 244 A8 8 0 0 1 256 232 A8 8 0 0 1 260 242" fill="none" stroke="#00e5a3" stroke-width="3" stroke-linecap="round" />
+    <circle cx="256" cy="238" r="2.5" fill="#00e5a3" />
+  </g>
+
+  <!-- COSMIC Stylized 'C' / Dot Accent -->
+  <circle cx="256" cy="450" r="8" fill="#48b9c7" />
+  <circle cx="230" cy="450" r="5" fill="#48b9c7" opacity="0.6" />
+  <circle cx="282" cy="450" r="5" fill="#48b9c7" opacity="0.6" />
+</svg>

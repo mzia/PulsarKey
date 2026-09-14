@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=YubiKey Security Applet
+Comment=COSMIC Panel Status Applet for YubiKey FIDO2
+Exec=/usr/bin/cosmic-fido2 applet
+Icon=com.system76.cosmic-fido2
+Terminal=false
+Type=Application
+Categories=COSMIC;Utility;Security;
+X-CosmicApplet=true
+X-GNOME-Autostart-enabled=true
+NoDisplay=true

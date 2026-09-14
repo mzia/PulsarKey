@@ -1,0 +1,35 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Update desktop application database
+        if which update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+
+        # Update icon cache
+        if which gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+
+        # Reload udev rules if active
+        if which udevadm >/dev/null 2>&1; then
+            udevadm control --reload-rules 2>/dev/null || true
+            udevadm trigger 2>/dev/null || true
+        fi
+
+        echo "================================================================"
+        echo " COSMIC YubiKey FIDO2 Manager installed successfully!"
+        echo ""
+        echo " Next steps:"
+        echo "  - To configure your YubiKey for COSMIC greeter & sudo, run:"
+        echo "      sudo cosmic-fido2 setup"
+        echo "  - The COSMIC Panel Applet will launch on your next login,"
+        echo "    or start it immediately with:"
+        echo "      systemctl --user start cosmic-fido2-applet"
+        echo "================================================================"
+    ;;
+esac
+
+exit 0

@@ -1,0 +1,19 @@
+Package: cosmic-fido2
+Version: 1.0.0
+Section: admin
+Priority: optional
+Architecture: amd64
+Depends: libc6 (>= 2.34), libpam-u2f, pamu2fcfg, yubikey-manager
+Recommends: libnotify-bin, cosmic-term
+Maintainer: Pop!_OS COSMIC Community <mzia@pop-os.local>
+Installed-Size: 7200
+Homepage: https://github.com/pop-os/cosmic-epoch
+Description: YubiKey FIDO2 and Biometric PAM Manager for Pop!_OS COSMIC
+ cosmic-fido2 provides seamless FIDO2 and biometric (YubiKey C Bio)
+ integration for the Pop!_OS COSMIC desktop environment.
+ .
+ Features:
+  * Zero-delay lockscreen unlocking with COSMIC greeter
+  * Passwordless / single-touch sudo authentication
+  * Native COSMIC desktop panel StatusNotifierItem applet
+  * Real-time USB hardware monitoring and biometric sensor testing
