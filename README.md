@@ -34,14 +34,47 @@ Before setting up PulsarKey, ensure your environment meets the following require
   * Fully compatible with **YubiKey 5 Series** (5C, 5 NFC, 5 Nano) and any standard FIDO2/WebAuthn key supporting User Verification (biometrics) or capacitive touch presence.
 * **USB Port**: An available USB-A or USB-C port to connect your hardware token.
 
-### 2. Operating System & Desktop
+### 2. On-Key Fingerprint Enrollment (Important)
+> [!IMPORTANT]
+> **PulsarKey connects your enrolled security key to the Linux PAM subsystem and the COSMIC Desktop — it does *not* enroll or store fingerprints on the hardware token itself.**
+>
+> If you are using a biometric key (such as the **YubiKey C Bio**), your fingerprints must already be registered directly on the key's onboard secure element before running `pulsarkey setup`.
+
+You can enroll your fingerprints using either of the following standard methods:
+
+#### Method A: Using YubiKey Manager CLI (`ykman`) [Terminal]
+```bash
+# 1. Install yubikey-manager
+sudo apt install -y yubikey-manager
+
+# 2. Set a FIDO2 PIN (required by hardware before adding biometric credentials)
+ykman fido access change-pin
+
+# 3. Add your fingerprint (follow terminal prompts to touch/scan sensor repeatedly)
+ykman fido fingerprints add "Right Index"
+
+# 4. Verify your enrolled fingerprints
+ykman fido fingerprints list
+```
+
+#### Method B: Using Yubico Authenticator GUI [Desktop App]
+1. Install **Yubico Authenticator** from Pop!_Shop / Flathub or via:
+   ```bash
+   flatpak install flathub com.yubico.yubioath
+   ```
+2. Insert your YubiKey and launch **Yubico Authenticator**.
+3. Select your device from the left sidebar and navigate to **WebAuthn / FIDO2** (or **Passkeys**).
+4. Set a FIDO2 PIN if prompted, then click **Fingerprints** -> **Add Fingerprint**.
+5. Follow the visual prompts to touch the sensor until biometric enrollment reaches 100%.
+
+### 3. Operating System & Desktop
 * **Operating System**: **Pop!_OS 24.04 LTS** (or compatible Debian/Ubuntu derivatives).
 * **Desktop Environment**: **COSMIC Desktop (Epoch)** featuring:
   * `cosmic-greeter` (the lockscreen display manager).
   * `cosmic-panel` (supporting D-Bus `StatusNotifierItem` applets).
   * `cosmic-term` or a standard terminal emulator.
 
-### 3. Software Dependencies
+### 4. Software Dependencies
 The following packages are required for PAM integration and hardware detection:
 * **`libpam-u2f`**: The Linux PAM module (`pam_u2f.so`) for FIDO2 and U2F authentication.
 * **`pamu2fcfg`**: Utility used to register security tokens and generate cryptographic credential mappings.
@@ -51,11 +84,11 @@ The following packages are required for PAM integration and hardware detection:
 > [!NOTE]
 > When running `sudo pulsarkey setup`, the tool will automatically check for these packages and prompt to install any missing dependencies via `apt`.
 
-### 4. System Privileges
+### 5. System Privileges
 * **Root (`sudo`) Privileges**: Required exclusively for the `setup` and `uninstall` subcommands to write PAM files (`/etc/pam.d/`), udev rules (`/etc/udev/rules.d/`), and credential mappings (`/etc/yubico/`).
 * **User Privileges**: Regular user permissions are sufficient to run the panel applet (`pulsarkey applet`) and inspect status (`pulsarkey status`).
 
-### 5. Build Requirements *(Source Compilation Only)*
+### 6. Build Requirements *(Source Compilation Only)*
 If you are compiling from source rather than installing the pre-built `.deb`:
 * **Rust Toolchain**: `rustc` and `cargo` (1.80+ / 2024 edition).
 * **System Libraries**: `libc6-dev`, `libdbus-1-dev`, `pkg-config`.
