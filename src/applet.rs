@@ -122,7 +122,7 @@ impl Tray for YubiKeyApplet {
 
     fn icon_name(&self) -> String {
         if self.is_connected {
-            "security-high-symbolic".into()
+            "auth-fingerprint-symbolic".into()
         } else {
             "security-low-symbolic".into()
         }
