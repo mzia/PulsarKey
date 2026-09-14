@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=PulsarKey
+GenericName=FIDO2 Security Key Manager
+Comment=Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC
+Exec=pulsarkey applet
+Icon=io.github.mzia.PulsarKey
+Terminal=false
+Type=Application
+Categories=Settings;System;Security;Utility;
+Keywords=pulsar;yubikey;fido2;u2f;security;biometric;cosmic;pam;greeter;
+StartupNotify=true
+X-CosmicApplet=true

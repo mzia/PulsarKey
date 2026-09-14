@@ -109,11 +109,11 @@ impl Tray for YubiKeyApplet {
     const MENU_ON_ACTIVATE: bool = true;
 
     fn id(&self) -> String {
-        "cosmic-yubikey-fido2".into()
+        "io.github.mzia.PulsarKey".into()
     }
 
     fn title(&self) -> String {
-        "YubiKey Security".into()
+        "PulsarKey Security".into()
     }
 
     fn category(&self) -> Category {
@@ -132,7 +132,7 @@ impl Tray for YubiKeyApplet {
         ToolTip {
             icon_name: self.icon_name(),
             icon_pixmap: Vec::new(),
-            title: "YubiKey FIDO2 Security".into(),
+            title: "PulsarKey FIDO2 Security".into(),
             description: format!(
                 "Device: {}\nLockscreen: {}\nSudo: {}",
                 self.device_name, self.lockscreen_status, self.sudo_status
@@ -224,7 +224,7 @@ impl Tray for YubiKeyApplet {
                 label: "🚀 Setup / Add Key (Terminal)...".into(),
                 activate: Box::new(|_| {
                     let _ = Command::new("cosmic-term")
-                        .args(["-e", "sudo", "cosmic-fido2", "setup"])
+                        .args(["-e", "sudo", "pulsarkey", "setup"])
                         .spawn();
                 }),
                 ..Default::default()
@@ -235,7 +235,7 @@ impl Tray for YubiKeyApplet {
                 label: "📊 View Security Status (Terminal)...".into(),
                 activate: Box::new(|_| {
                     let _ = Command::new("cosmic-term")
-                        .args(["-e", "bash", "-c", "cosmic-fido2 status; read -p 'Press Enter to close...'"])
+                        .args(["-e", "bash", "-c", "pulsarkey status; read -p 'Press Enter to close...'"])
                         .spawn();
                 }),
                 ..Default::default()

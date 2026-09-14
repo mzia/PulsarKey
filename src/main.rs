@@ -15,10 +15,10 @@ mod applet;
 
 #[derive(Parser)]
 #[command(
-    name = "cosmic-fido2",
-    author = "Pop!_OS COSMIC Community",
+    name = "pulsarkey",
+    author = "M. Zia <mzia@pop-os.local>",
     version = "1.0.0",
-    about = "Native Rust manager for YubiKey FIDO2 / Biometric authentication on Pop!_OS COSMIC"
+    about = "Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -68,7 +68,7 @@ fn main() {
             if install_autostart {
                 install_applet_autostart();
             }
-            println!("🚀 Launching COSMIC YubiKey Panel Applet...");
+            println!("🌌 Launching PulsarKey COSMIC Panel Applet...");
             tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(applet::run_applet());
@@ -85,17 +85,17 @@ fn install_applet_autostart() {
     let _ = fs::create_dir_all(&apps_dir);
 
     let desktop_content = "[Desktop Entry]\n\
-Name=YubiKey Security Applet\n\
+Name=PulsarKey Security Applet\n\
 Comment=COSMIC Panel Status Applet for YubiKey FIDO2\n\
-Exec=/usr/local/bin/cosmic-fido2 applet\n\
-Icon=security-high-symbolic\n\
+Exec=/usr/bin/pulsarkey applet\n\
+Icon=io.github.mzia.PulsarKey\n\
 Terminal=false\n\
 Type=Application\n\
 Categories=COSMIC;Utility;Security;\n\
 X-CosmicApplet=true\n";
 
-    let autostart_file = autostart_dir.join("cosmic-fido2-applet.desktop");
-    let app_file = apps_dir.join("cosmic-fido2-applet.desktop");
+    let autostart_file = autostart_dir.join("io.github.mzia.PulsarKey.desktop");
+    let app_file = apps_dir.join("io.github.mzia.PulsarKey.desktop");
 
     let _ = fs::write(&autostart_file, desktop_content);
     let _ = fs::write(&app_file, desktop_content);
@@ -129,7 +129,7 @@ fn ensure_root(action: &str) {
         );
         eprintln!(
             "Please run with sudo: {}",
-            format!("sudo cosmic-fido2 {}", action).bold().yellow()
+            format!("sudo pulsarkey {}", action).bold().yellow()
         );
         std::process::exit(1);
     }
@@ -144,7 +144,7 @@ fn run_setup(reinstall: bool) {
     println!("{}", "==================================================".cyan());
     println!(
         "{} {}",
-        "🚀 COSMIC FIDO2 / YubiKey Setup for user:".bold().green(),
+        "🌌 PulsarKey FIDO2 & Biometric Setup for user:".bold().green(),
         username.bold().yellow()
     );
     println!("{}", "==================================================".cyan());
@@ -453,7 +453,7 @@ fn run_uninstall(purge: bool) {
 // ---------------------------------------------------------
 fn run_status() {
     println!("{}", "==================================================".cyan());
-    println!("{}", " 🔍 Pop!_OS COSMIC FIDO2 Security Status".bold().cyan());
+    println!("{}", " 🔍 PulsarKey Security Status (Pop!_OS COSMIC)".bold().cyan());
     println!("{}", "==================================================".cyan());
 
     // Check packages

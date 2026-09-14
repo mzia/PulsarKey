@@ -1,10 +1,10 @@
-app-id: io.github.mzia.CosmicFido2
+app-id: io.github.mzia.PulsarKey
 runtime: org.freedesktop.Platform
 runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
-command: cosmic-fido2
+command: pulsarkey
 
 finish-args:
   - --share=ipc
@@ -21,17 +21,18 @@ finish-args:
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
   env:
-    CARGO_HOME: /run/build/cosmic-fido2/cargo
+    CARGO_HOME: /run/build/pulsarkey/cargo
 
 modules:
-  - name: cosmic-fido2
+  - name: pulsarkey
     buildsystem: simple
     build-commands:
       - cargo --offline build --release --verbose || cargo build --release --verbose
-      - install -Dm755 target/release/cosmic-fido2 /app/bin/cosmic-fido2
-      - install -Dm644 packaging/flatpak/io.github.mzia.CosmicFido2.desktop /app/share/applications/io.github.mzia.CosmicFido2.desktop
-      - install -Dm644 packaging/flatpak/io.github.mzia.CosmicFido2.metainfo.xml /app/share/metainfo/io.github.mzia.CosmicFido2.metainfo.xml
-      - install -Dm644 packaging/flatpak/io.github.mzia.CosmicFido2.svg /app/share/icons/hicolor/scalable/apps/io.github.mzia.CosmicFido2.svg
+      - install -Dm755 target/release/pulsarkey /app/bin/pulsarkey
+      - ln -sf pulsarkey /app/bin/cosmic-fido2
+      - install -Dm644 packaging/flatpak/io.github.mzia.PulsarKey.desktop /app/share/applications/io.github.mzia.PulsarKey.desktop
+      - install -Dm644 packaging/flatpak/io.github.mzia.PulsarKey.metainfo.xml /app/share/metainfo/io.github.mzia.PulsarKey.metainfo.xml
+      - install -Dm644 packaging/cosmic-fido2.svg /app/share/icons/hicolor/scalable/apps/io.github.mzia.PulsarKey.svg
     sources:
       - type: dir
         path: ../..
