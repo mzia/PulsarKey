@@ -1,7 +1,7 @@
 use ksni::menu::*;
 use ksni::{Category, MenuItem, ToolTip, Tray, TrayMethods};
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
@@ -61,45 +61,48 @@ impl YubiKeyApplet {
     }
 
     pub fn refresh(&mut self) {
-        // 1. Hardware detection
-        let new_connected;
-        let yk_output = Command::new("ykman").arg("info").output();
-        match yk_output {
-            Ok(out) if out.status.success() => {
-                let info = String::from_utf8_lossy(&out.stdout);
-                let first_line = info
-                    .lines()
-                    .find(|l| l.starts_with("Device type:"))
-                    .map(|l| l.replace("Device type:", "").trim().to_string())
-                    .unwrap_or_else(|| "YubiKey Detected".to_string());
-
-                self.device_name = first_line;
-                new_connected = true;
-            }
-            _ => {
-                // Fallback check on hidraw devices with Yubico vendor ID (1050)
-                let has_yubico_hid = Path::new("/sys/bus/usb/drivers/usbhid")
-                    .read_dir()
-                    .map(|entries| {
-                        entries.flatten().any(|e| {
-                            let path = e.path();
-                            if let Ok(modalias) = fs::read_to_string(path.join("modalias")) {
-                                modalias.contains("v1050")
-                            } else {
-                                false
-                            }
-                        })
-                    })
-                    .unwrap_or(false);
-
-                if has_yubico_hid {
-                    self.device_name = "YubiKey (Connected)".to_string();
-                    new_connected = true;
-                } else {
-                    self.device_name = "No YubiKey Detected".to_string();
-                    new_connected = false;
+        // 1. Instant sysfs hardware detection (zero contention, zero Python overhead)
+        let mut yubikey_sysfs_path: Option<PathBuf> = None;
+        if let Ok(entries) = fs::read_dir("/sys/bus/usb/devices") {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if let Ok(vendor) = fs::read_to_string(p.join("idVendor")) {
+                    if vendor.trim() == "1050" {
+                        yubikey_sysfs_path = Some(p);
+                        break;
+                    }
                 }
             }
+        }
+
+        let new_connected = yubikey_sysfs_path.is_some();
+
+        if new_connected {
+            if !self.was_connected || self.device_name == "No YubiKey Detected" {
+                // Read product name from sysfs first
+                let product_name = yubikey_sysfs_path
+                    .as_ref()
+                    .and_then(|p| fs::read_to_string(p.join("product")).ok())
+                    .map(|s| s.trim().to_string());
+
+                // Enrich with ykman info once upon insertion
+                let yk_name = Command::new("ykman").arg("info").output().ok().and_then(|out| {
+                    if out.status.success() {
+                        let info = String::from_utf8_lossy(&out.stdout);
+                        info.lines()
+                            .find(|l| l.starts_with("Device type:"))
+                            .map(|l| l.replace("Device type:", "").trim().to_string())
+                    } else {
+                        None
+                    }
+                });
+
+                self.device_name = yk_name
+                    .or(product_name)
+                    .unwrap_or_else(|| "YubiKey Detected".to_string());
+            }
+        } else {
+            self.device_name = "No YubiKey Detected".to_string();
         }
 
         // Feature 1: Presence Sentinel - Auto-Lock on key removal
@@ -293,6 +296,17 @@ impl Tray for YubiKeyApplet {
                 activate: Box::new(|_| {
                     let _ = Command::new("cosmic-term")
                         .args(["-e", "sudo", "pulsarkey", "setup"])
+                        .spawn();
+                }),
+                ..Default::default()
+            }
+            .into(),
+            // Action: Biometric & Fingerprint Manager
+            StandardItem {
+                label: "🧬 Biometric Fingerprint Manager (Terminal)...".into(),
+                activate: Box::new(|_| {
+                    let _ = Command::new("cosmic-term")
+                        .args(["-e", "pulsarkey", "bio"])
                         .spawn();
                 }),
                 ..Default::default()

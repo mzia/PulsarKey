@@ -14,6 +14,7 @@ const PAM_POLKIT: &str = "/etc/pam.d/polkit-1";
 const TEMPLATE_POLKIT: &str = "/usr/lib/pam.d/polkit-1";
 
 mod applet;
+mod bio;
 mod config;
 mod ssh_setup;
 
@@ -69,6 +70,61 @@ enum Commands {
         #[arg(long, value_name = "PATH")]
         key_path: Option<String>,
     },
+    /// Manage on-key fingerprints and biometrics (enroll, list, delete, rename)
+    Bio {
+        #[command(subcommand)]
+        action: Option<BioCommands>,
+    },
+    /// Manage FIDO2 hardware PIN code
+    Pin {
+        /// Action: "change", "set", "verify", or "status"
+        #[arg(value_name = "ACTION")]
+        action: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum BioCommands {
+    /// List registered fingerprints on the security key
+    List {
+        /// FIDO2 PIN (prompted securely if omitted)
+        #[arg(short, long)]
+        pin: Option<String>,
+    },
+    /// Enroll a new fingerprint
+    Add {
+        /// Name / label for the fingerprint (e.g. "Right Index")
+        name: Option<String>,
+        /// FIDO2 PIN (prompted securely if omitted)
+        #[arg(short, long)]
+        pin: Option<String>,
+    },
+    /// Delete a registered fingerprint
+    Delete {
+        /// Fingerprint ID to delete
+        id: Option<String>,
+        /// FIDO2 PIN (prompted securely if omitted)
+        #[arg(short, long)]
+        pin: Option<String>,
+        /// Delete without confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+    },
+    /// Rename a registered fingerprint
+    Rename {
+        /// Fingerprint ID to rename
+        id: Option<String>,
+        /// New name / label (max 15 chars)
+        name: Option<String>,
+        /// FIDO2 PIN (prompted securely if omitted)
+        #[arg(short, long)]
+        pin: Option<String>,
+    },
+    /// Set or change FIDO2 hardware PIN
+    Pin {
+        /// Action: "change", "set", "verify", or "status"
+        action: Option<String>,
+    },
 }
 
 fn main() {
@@ -104,6 +160,12 @@ fn main() {
             key_path,
         } => {
             ssh_setup::run_ssh_setup(no_resident, no_git_sign, key_path);
+        }
+        Commands::Bio { action } => {
+            bio::handle_bio_cli(action);
+        }
+        Commands::Pin { action } => {
+            bio::handle_pin_cli(action);
         }
     }
 }
@@ -588,6 +650,10 @@ fn run_status() {
     let (ssh_status, git_status) = ssh_setup::check_ssh_git_status();
     println!("Hardware SSH Key:        {}", ssh_status.cyan());
     println!("Git Commit Signing:      {}", git_status.cyan());
+
+    // Check Biometric Engine
+    let bio_status = bio::check_bio_status();
+    println!("Biometric Engine:        {}", bio_status);
 
     // Check connected YubiKey
     println!("\nHardware Detection:");

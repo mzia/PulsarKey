@@ -100,6 +100,7 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 - 🔒 **Zero-Lag Lockscreen Integration**: Solves the COSMIC Greeter empty-submit filter via an interactive prompt (<kbd>Space</kbd> + <kbd>Enter</kbd>), preventing premature key blinking immediately upon locking and prompting only when you log back in.
 - ⚡ **Touch & Biometric Sudo**: Authenticate `sudo` commands instantly with a single touch or fingerprint scan.
 - 🪟 **Polkit GUI Elevation**: Authorize graphical administrative dialogs (Pop!_Shop, Eddy, COSMIC Settings, and `pkexec`) with a simple fingerprint scan on your physical token.
+- 🧬 **Native Biometric & Fingerprint Manager**: Direct on-device biometric enrollment, template renaming, fingerprint deletion, and FIDO2 hardware PIN management (`pulsarkey bio` & `pulsarkey pin`) without requiring external GUI tools.
 - 🛡️ **Presence Sentinel (Auto-Lock on Removal)**: Automatically locks your COSMIC desktop session (`loginctl lock-session`) the second your security key is unplugged. Easily toggled on/off from the panel applet or CLI.
 - 🔑 **Hardware-Backed SSH & Git Signing**: Generates resident FIDO2 keys (`ed25519-sk`) on your YubiKey and configures Git to cryptographically sign all commits with your biometric touch (`pulsarkey ssh-setup`).
 - 🖥️ **Native COSMIC Top Bar Applet**: StatusNotifierItem tray applet featuring real-time USB hardware detection, PAM configuration health checks, session locking, and one-click biometric diagnostics.
@@ -116,9 +117,9 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 #### Option A: Native Debian Package (COSMIC Store / APT)
 Download the latest `.deb` package from [Releases](https://github.com/mzia/PulsarKey/releases):
 ```bash
-sudo apt install ./dist/pulsarkey_1.1.0_amd64.deb
+sudo apt install ./dist/pulsarkey_1.2.0_amd64.deb
 ```
-*(Or right-click `pulsarkey_1.1.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
+*(Or right-click `pulsarkey_1.2.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
 
 #### Option B: Build from Source
 ```bash
@@ -138,7 +139,7 @@ sudo pulsarkey setup
 ```
 
 The setup assistant will:
-1. Verify system packages (`libpam-u2f`, `pamu2fcfg`, `yubikey-manager`).
+1. Detect your hardware and install required PAM libraries (`libpam-u2f`, `pamu2fcfg`, `yubikey-manager`).
 2. Configure udev rules for the `cosmic-greeter` user group.
 3. Guide you through enrolling your primary YubiKey with biometric User Verification.
 4. Optionally enroll a backup key.
@@ -177,6 +178,7 @@ The PulsarKey applet provides an interactive menu directly from the COSMIC panel
 ─────────────────────────────────
 🔍 Test Fingerprint Sensor...
 🚀 Setup / Add Key (Terminal)...
+🧬 Biometric Fingerprint Manager (Terminal)...
 🔑 Hardware SSH & Git Signing (Terminal)...
 📊 View Security Status (Terminal)...
 🔒 Lock Screen Now
@@ -200,20 +202,52 @@ pulsarkey status
 ==================================================
 pamu2fcfg tool:          Installed
 COSMIC udev rules:       Configured
-System Credential Map:   Present (1 keys registered, Biometrics/UV: Enabled)
+System Credential Map:   Present (2 keys registered, Biometrics/UV: Enabled)
 PAM sudo:                FIDO2 Enabled (Interactive: No (Direct touch))
 PAM cosmic-greeter:      FIDO2 Enabled (Interactive: Yes)
 PAM polkit-1 (GUI):      FIDO2 Enabled (Interactive: No (Direct touch))
 Sentinel Auto-Lock:      Enabled (locks desktop on removal)
-Hardware SSH Key:        Configured (~/.ssh/id_ed25519_sk, FIDO2 Resident)
-Git Commit Signing:      Configured (SSH format, Auto-signing enabled)
+Hardware SSH Key:        FIDO2 Active (~/.ssh/id_ed25519_sk)
+Git Commit Signing:      Enabled (SSH FIDO2 touch required)
+Biometric Engine:        Biometric Sensor Active [Prints: Enrolled (3 attempt(s) remaining), PIN: Set (8 attempt(s) remaining)]
 
 Hardware Detection:
   Device type: YubiKey C Bio - FIDO Edition
-  Serial number: 31086111
+  Serial number: 33648425
   Firmware version: 5.7.4
-  Formfactor: Keychain (USB-C)
+  Form factor: Bio (USB-C)
+  Enabled USB interfaces: FIDO
 ==================================================
+```
+
+---
+
+## 🧬 Native Biometric & Fingerprint Manager
+
+PulsarKey provides direct, on-device biometric lifecycle management for YubiKey Bio and FIDO2 keys:
+
+```bash
+pulsarkey bio
+```
+
+Or trigger it directly from the COSMIC panel applet: **🧬 Biometric Fingerprint Manager (Terminal)...**
+
+### Capabilities:
+- **Interactive Biometric Dashboard**: Authenticate with your FIDO2 PIN once and manage all on-key fingerprints in a guided terminal session.
+- **Biometric Enrollment**: Register new fingerprints directly from PulsarKey with real-time sensor scan prompts and progress feedback.
+- **Template Labels**: Name and rename your fingerprints (e.g. *"Right Index"*, *"Left Thumb"*).
+- **Template Deletion**: Delete individual fingerprint templates without resetting your security key.
+- **FIDO2 PIN Management**: Check remaining PIN attempts, set a new PIN, verify PIN, or change existing PIN.
+
+### CLI Commands:
+```bash
+pulsarkey bio                            # Interactive management dashboard
+pulsarkey bio list                       # List all enrolled fingerprints on token
+pulsarkey bio add "Right Index"          # Enroll new fingerprint with custom label
+pulsarkey bio rename <ID> "Work Thumb"   # Rename existing fingerprint
+pulsarkey bio delete <ID>                # Delete fingerprint template
+pulsarkey pin status                     # Check FIDO2 PIN set state & remaining retries
+pulsarkey pin change                     # Change FIDO2 hardware PIN
 ```
 
 ---
@@ -279,6 +313,11 @@ Or trigger it directly from the COSMIC panel applet menu: **🔑 Hardware SSH & 
      git log -1 --show-signature
      ```
 
+6. **Test Biometric Fingerprint Manager**:
+   ```bash
+   pulsarkey bio
+   ```
+
 ---
 
 ## 🔄 Uninstallation & Rollback
@@ -302,6 +341,7 @@ PulsarKey/
 ├── src/
 │   ├── main.rs                                # CLI entry point (setup, uninstall, status)
 │   ├── applet.rs                              # COSMIC StatusNotifierItem panel applet
+│   ├── bio.rs                                 # On-key biometric & FIDO2 PIN manager
 │   ├── config.rs                              # Config persistence (~/.config/pulsarkey/config.json)
 │   └── ssh_setup.rs                           # Hardware SSH & Git commit signing wizard
 ├── packaging/
@@ -317,7 +357,7 @@ PulsarKey/
 │       ├── ci.yml                             # Continuous integration (build, test, appstream)
 │       └── release.yml                        # Automated GitHub Releases & .deb distribution
 ├── dist/
-│   └── pulsarkey_1.1.0_amd64.deb              # Pre-compiled native Debian package
+│   └── pulsarkey_1.2.0_amd64.deb              # Pre-compiled native Debian package
 ├── Makefile                                   # 'make build', 'make install', 'make deb'
 ├── LICENSE                                    # MIT License
 └── README.md                                  # Documentation
