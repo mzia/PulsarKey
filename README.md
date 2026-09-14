@@ -4,9 +4,61 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Pop!__OS%20COSMIC-teal.svg?style=flat-square)](https://system76.com/cosmic)
 [![Packaging](https://img.shields.io/badge/Packaging-Debian%20.deb%20%7C%20Flathub-purple.svg?style=flat-square)](packaging/)
+[![Release](https://img.shields.io/github/v/release/mzia/PulsarKey?style=flat-square)](https://github.com/mzia/PulsarKey/releases)
 
 > **Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC**  
 > *Seamless, zero-lag YubiKey Bio unlocking, passwordless sudo, and real-time top bar panel monitoring.*
+
+---
+
+## 📖 What is PulsarKey?
+
+**PulsarKey** is a native Rust security utility, system configuration manager, and desktop status applet designed specifically for **Pop!_OS** and the **COSMIC Desktop Environment**.
+
+It provides seamless integration for hardware security tokens (specifically **YubiKey C Bio**, **YubiKey 5 Series**, and FIDO2/WebAuthn authenticators) to authenticate both the **COSMIC lockscreen greeter** and administrative **sudo** actions.
+
+### The Problems It Solves:
+1. **Modern Biometric FIDO2 Support**: System76's official YubiKey documentation relies on legacy OTP challenge-response (`pam_yubico.so`). Modern biometric tokens like the **YubiKey C Bio - FIDO Edition** do not feature an OTP engine and enforce strict hardware User Verification (`alwaysUv: True`). PulsarKey utilizes native FIDO2 assertions with `+presence+verification` to satisfy hardware biometric constraints.
+2. **Zero-Lag COSMIC Lockscreen**: In `cosmic-greeter`, the lockscreen interface discards empty password submissions (`if value.is_empty() { return Task::none(); }`). PulsarKey injects an interactive PAM conversation requiring <kbd>Space</kbd> + <kbd>Enter</kbd> to initiate the FIDO2 exchange. This stops the key from flashing prematurely the moment your screen locks, ensuring touch verification is only requested when you are actively logging back in.
+3. **Live Desktop Status & Diagnostics**: Users often have no visibility into whether their physical security token is recognized or working. PulsarKey features a lightweight native top bar panel applet that monitors hardware connections, displays current PAM states, and provides a one-click sensor test with desktop notifications.
+
+---
+
+## 📋 Prerequisites
+
+Before setting up PulsarKey, ensure your environment meets the following requirements:
+
+### 1. Hardware Requirements
+* **FIDO2 / U2F Security Token**:
+  * Tested and optimized for the **YubiKey C Bio – FIDO Edition** (Firmware 5.7.4+).
+  * Fully compatible with **YubiKey 5 Series** (5C, 5 NFC, 5 Nano) and any standard FIDO2/WebAuthn key supporting User Verification (biometrics) or capacitive touch presence.
+* **USB Port**: An available USB-A or USB-C port to connect your hardware token.
+
+### 2. Operating System & Desktop
+* **Operating System**: **Pop!_OS 24.04 LTS** (or compatible Debian/Ubuntu derivatives).
+* **Desktop Environment**: **COSMIC Desktop (Epoch)** featuring:
+  * `cosmic-greeter` (the lockscreen display manager).
+  * `cosmic-panel` (supporting D-Bus `StatusNotifierItem` applets).
+  * `cosmic-term` or a standard terminal emulator.
+
+### 3. Software Dependencies
+The following packages are required for PAM integration and hardware detection:
+* **`libpam-u2f`**: The Linux PAM module (`pam_u2f.so`) for FIDO2 and U2F authentication.
+* **`pamu2fcfg`**: Utility used to register security tokens and generate cryptographic credential mappings.
+* **`yubikey-manager` (`ykman`)**: Command-line tool used by the applet and status dashboard for hardware telemetry.
+* **`libnotify-bin` (`notify-send`)**: Required by the applet to trigger desktop diagnostic notifications.
+
+> [!NOTE]
+> When running `sudo pulsarkey setup`, the tool will automatically check for these packages and prompt to install any missing dependencies via `apt`.
+
+### 4. System Privileges
+* **Root (`sudo`) Privileges**: Required exclusively for the `setup` and `uninstall` subcommands to write PAM files (`/etc/pam.d/`), udev rules (`/etc/udev/rules.d/`), and credential mappings (`/etc/yubico/`).
+* **User Privileges**: Regular user permissions are sufficient to run the panel applet (`pulsarkey applet`) and inspect status (`pulsarkey status`).
+
+### 5. Build Requirements *(Source Compilation Only)*
+If you are compiling from source rather than installing the pre-built `.deb`:
+* **Rust Toolchain**: `rustc` and `cargo` (1.80+ / 2024 edition).
+* **System Libraries**: `libc6-dev`, `libdbus-1-dev`, `pkg-config`.
 
 ---
 
@@ -14,16 +66,16 @@
 
 In astronomy, a **Pulsar** is a dense, rapidly rotating celestial neutron star that emits precise, rhythmic pulses of electromagnetic radiation across the cosmos. 
 
-When your FIDO2 security key (such as the **YubiKey C Bio**) awaits your biometric fingerprint or touch presence, its LED sensor pulses with a steady, rhythmic beacon of light. **PulsarKey** bridges the celestial theme of System76's **COSMIC** desktop with the hardware heartbeat of your physical security token.
+When your FIDO2 security key awaits your biometric fingerprint or touch presence, its LED sensor pulses with a steady, rhythmic beacon of light. **PulsarKey** bridges the celestial theme of System76's **COSMIC** desktop with the hardware heartbeat of your physical security token.
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-- 🔒 **Zero-Lag Lockscreen Integration**: Solves the COSMIC Greeter empty-submit filter (`locker.rs`) via an interactive prompt (`Space` + `Enter`), preventing premature key blinking immediately upon locking and prompting only when you log back in.
+- 🔒 **Zero-Lag Lockscreen Integration**: Solves the COSMIC Greeter empty-submit filter via an interactive prompt (<kbd>Space</kbd> + <kbd>Enter</kbd>), preventing premature key blinking immediately upon locking and prompting only when you log back in.
 - ⚡ **Touch & Biometric Sudo**: Authenticate `sudo` commands instantly with a single touch or fingerprint scan.
 - 🖥️ **Native COSMIC Top Bar Applet**: StatusNotifierItem tray applet featuring real-time USB hardware detection, PAM configuration health checks, session locking, and one-click biometric diagnostics.
-- 🧬 **Hardware User Verification (UV)**: Enforces FIDO2 `+presence+verification` assertions, perfectly supporting biometric keys like the **YubiKey C Bio** (Firmware 5.7.4+).
+- 🧬 **Hardware User Verification (UV)**: Enforces FIDO2 `+presence+verification` assertions, perfectly supporting biometric keys like the **YubiKey C Bio**.
 - 🛡️ **Anti-Lockout & Safe Rollback**: Never locks you out of your desktop. Standard password authentication remains available as a fallback (`nouserok`), and `pulsarkey uninstall` cleanly restores original PAM configs.
 - 📦 **Dual Packaging**: Ships both as a native Debian package (`.deb`) for the Pop!_OS COSMIC Store / Eddy and a containerized Flathub Flatpak bundle.
 
@@ -34,11 +86,11 @@ When your FIDO2 security key (such as the **YubiKey C Bio**) awaits your biometr
 ### 1. Installation
 
 #### Option A: Native Debian Package (COSMIC Store / APT)
-Download the latest `.deb` release from [Releases](https://github.com/mzia/PulsarKey/releases) or build locally:
+Download the latest `.deb` package from [Releases](https://github.com/mzia/PulsarKey/releases):
 ```bash
-sudo apt install ./packaging/pulsarkey_1.0.0_amd64.deb
+sudo apt install ./dist/pulsarkey_1.0.0_amd64.deb
 ```
-*(Or right-click the `.deb` file in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
+*(Or right-click `pulsarkey_1.0.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
 
 #### Option B: Build from Source
 ```bash
@@ -136,7 +188,7 @@ Hardware Detection:
    ```bash
    sudo -k && sudo whoami
    ```
-   *Touch your YubiKey sensor when prompted — command will execute without typing a password.*
+   *Touch your YubiKey sensor when prompted — the command will execute without requiring a password.*
 
 2. **Test COSMIC Greeter Lockscreen**:
    - Press <kbd>Super</kbd> + <kbd>L</kbd> to lock your session.
@@ -171,7 +223,6 @@ PulsarKey/
 │   ├── build_deb.sh                           # Automated Debian .deb builder
 │   ├── README.md                              # Packaging guide
 │   ├── cosmic-fido2.svg                       # 512x512 vector icon
-│   ├── deb/                                   # Debian package control & postinst scripts
 │   └── flatpak/                               # Flathub / COSMIC Flatpak manifest & AppStream XML
 │       ├── io.github.mzia.PulsarKey.yaml      # Flatpak build definition
 │       ├── io.github.mzia.PulsarKey.metainfo.xml # AppStream 1.0 metadata
@@ -180,6 +231,8 @@ PulsarKey/
 │   └── workflows/
 │       ├── ci.yml                             # Continuous integration (build, test, appstream)
 │       └── release.yml                        # Automated GitHub Releases & .deb distribution
+├── dist/
+│   └── pulsarkey_1.0.0_amd64.deb              # Pre-compiled native Debian package
 ├── Makefile                                   # 'make build', 'make install', 'make deb'
 ├── LICENSE                                    # MIT License
 └── README.md                                  # Documentation
