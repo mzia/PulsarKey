@@ -15,12 +15,13 @@ const TEMPLATE_POLKIT: &str = "/usr/lib/pam.d/polkit-1";
 
 mod applet;
 mod config;
+mod ssh_setup;
 
 #[derive(Parser)]
 #[command(
     name = "pulsarkey",
     author = "M. Zia <mzia@pop-os.local>",
-    version = "1.0.0",
+    version,
     about = "Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC"
 )]
 struct Cli {
@@ -56,6 +57,18 @@ enum Commands {
         #[arg(value_name = "ACTION")]
         action: Option<String>,
     },
+    /// Generate hardware-backed SSH keys and configure Git commit signing
+    SshSetup {
+        /// Do not store resident key on token
+        #[arg(long)]
+        no_resident: bool,
+        /// Do not configure Git commit signing
+        #[arg(long)]
+        no_git_sign: bool,
+        /// Custom key output path (default: ~/.ssh/id_ed25519_sk)
+        #[arg(long, value_name = "PATH")]
+        key_path: Option<String>,
+    },
 }
 
 fn main() {
@@ -84,6 +97,13 @@ fn main() {
         }
         Commands::Autolock { action } => {
             handle_autolock(action);
+        }
+        Commands::SshSetup {
+            no_resident,
+            no_git_sign,
+            key_path,
+        } => {
+            ssh_setup::run_ssh_setup(no_resident, no_git_sign, key_path);
         }
     }
 }
@@ -563,6 +583,11 @@ fn run_status() {
         "Sentinel Auto-Lock:      {}",
         if cfg.autolock { "Enabled (locks desktop on removal)".green() } else { "Disabled".yellow() }
     );
+
+    // Check SSH & Git Signing
+    let (ssh_status, git_status) = ssh_setup::check_ssh_git_status();
+    println!("Hardware SSH Key:        {}", ssh_status.cyan());
+    println!("Git Commit Signing:      {}", git_status.cyan());
 
     // Check connected YubiKey
     println!("\nHardware Detection:");

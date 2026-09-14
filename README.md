@@ -101,6 +101,7 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 - ⚡ **Touch & Biometric Sudo**: Authenticate `sudo` commands instantly with a single touch or fingerprint scan.
 - 🪟 **Polkit GUI Elevation**: Authorize graphical administrative dialogs (Pop!_Shop, Eddy, COSMIC Settings, and `pkexec`) with a simple fingerprint scan on your physical token.
 - 🛡️ **Presence Sentinel (Auto-Lock on Removal)**: Automatically locks your COSMIC desktop session (`loginctl lock-session`) the second your security key is unplugged. Easily toggled on/off from the panel applet or CLI.
+- 🔑 **Hardware-Backed SSH & Git Signing**: Generates resident FIDO2 keys (`ed25519-sk`) on your YubiKey and configures Git to cryptographically sign all commits with your biometric touch (`pulsarkey ssh-setup`).
 - 🖥️ **Native COSMIC Top Bar Applet**: StatusNotifierItem tray applet featuring real-time USB hardware detection, PAM configuration health checks, session locking, and one-click biometric diagnostics.
 - 🧬 **Hardware User Verification (UV)**: Enforces FIDO2 `+presence+verification` assertions, perfectly supporting biometric keys like the **YubiKey C Bio**.
 - 🛡️ **Anti-Lockout & Safe Rollback**: Never locks you out of your desktop. Standard password authentication remains available as a fallback (`nouserok`), and `pulsarkey uninstall` cleanly restores original PAM configs.
@@ -115,9 +116,9 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 #### Option A: Native Debian Package (COSMIC Store / APT)
 Download the latest `.deb` package from [Releases](https://github.com/mzia/PulsarKey/releases):
 ```bash
-sudo apt install ./dist/pulsarkey_1.0.0_amd64.deb
+sudo apt install ./dist/pulsarkey_1.1.0_amd64.deb
 ```
-*(Or right-click `pulsarkey_1.0.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
+*(Or right-click `pulsarkey_1.1.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
 
 #### Option B: Build from Source
 ```bash
@@ -141,7 +142,7 @@ The setup assistant will:
 2. Configure udev rules for the `cosmic-greeter` user group.
 3. Guide you through enrolling your primary YubiKey with biometric User Verification.
 4. Optionally enroll a backup key.
-5. Safely inject PAM configurations into `/etc/pam.d/cosmic-greeter` and `/etc/pam.d/sudo`.
+5. Safely inject PAM configurations into `/etc/pam.d/cosmic-greeter`, `/etc/pam.d/sudo`, and `/etc/pam.d/polkit-1`.
 
 ---
 
@@ -151,7 +152,7 @@ Start the applet and enable session autostart:
 ```bash
 pulsarkey applet --install-autostart
 ```
-The applet will appear on your COSMIC panel with a real-time status icon (`security-high-symbolic` when connected, `security-low-symbolic` when disconnected).
+The applet will appear on your COSMIC panel with a real-time status icon (`auth-fingerprint-symbolic`).
 
 You can also run it as a systemd user service:
 ```bash
@@ -176,6 +177,7 @@ The PulsarKey applet provides an interactive menu directly from the COSMIC panel
 ─────────────────────────────────
 🔍 Test Fingerprint Sensor...
 🚀 Setup / Add Key (Terminal)...
+🔑 Hardware SSH & Git Signing (Terminal)...
 📊 View Security Status (Terminal)...
 🔒 Lock Screen Now
 ─────────────────────────────────
@@ -203,6 +205,8 @@ PAM sudo:                FIDO2 Enabled (Interactive: No (Direct touch))
 PAM cosmic-greeter:      FIDO2 Enabled (Interactive: Yes)
 PAM polkit-1 (GUI):      FIDO2 Enabled (Interactive: No (Direct touch))
 Sentinel Auto-Lock:      Enabled (locks desktop on removal)
+Hardware SSH Key:        Configured (~/.ssh/id_ed25519_sk, FIDO2 Resident)
+Git Commit Signing:      Configured (SSH format, Auto-signing enabled)
 
 Hardware Detection:
   Device type: YubiKey C Bio - FIDO Edition
@@ -211,6 +215,31 @@ Hardware Detection:
   Formfactor: Keychain (USB-C)
 ==================================================
 ```
+
+---
+
+## 🔑 Hardware-Backed SSH & Git Signing
+
+PulsarKey includes an automated wizard to generate hardware-backed FIDO2 SSH keys (`ed25519-sk`) and configure cryptographic Git commit signing:
+
+```bash
+pulsarkey ssh-setup
+```
+
+Or trigger it directly from the COSMIC panel applet menu: **🔑 Hardware SSH & Git Signing (Terminal)...**
+
+### What it does:
+1. **Hardware Verification**: Queries your connected security key (YubiKey C Bio or standard FIDO2).
+2. **Resident Key Generation**: Creates an OpenSSH `ed25519-sk` key pair with biometric User Verification (`-O verify-required`) stored directly on your physical hardware (`-O resident`).
+3. **Cryptographic Git Signing**: Configures Git to sign all commits with your hardware key (`gpg.format = ssh`, `commit.gpgsign = true`, `tag.gpgsign = true`).
+4. **Allowed Signers & Verification**: Adds your public key to `~/.ssh/allowed_signers` and configures Git so `git log --show-signature` displays verified signatures immediately.
+5. **Instant Clipboard Export**: Automatically copies your public key (`~/.ssh/id_ed25519_sk.pub`) to your clipboard via `wl-copy`/`xclip` for one-click pasting into GitHub, GitLab, or remote servers.
+
+### CLI Options:
+- `pulsarkey ssh-setup` — Full interactive guided setup with defaults.
+- `pulsarkey ssh-setup --no-resident` — Generate non-resident key file without on-chip credential storage.
+- `pulsarkey ssh-setup --no-git-sign` — Generate SSH hardware key only, skipping Git signing configuration.
+- `pulsarkey ssh-setup --key-path ~/.ssh/custom_key` — Specify custom output path for the key pair.
 
 ---
 
@@ -239,6 +268,17 @@ Hardware Detection:
    - Unplug your YubiKey from the USB port.
    - PulsarKey instantly triggers `loginctl lock-session`, securing your desktop the moment you step away.
 
+5. **Test Hardware Git Commit Signing**:
+   - Make a commit in any repository:
+     ```bash
+     git commit -m "test commit"
+     ```
+   - Touch or scan your fingerprint on your YubiKey to sign the commit.
+   - Verify the signature:
+     ```bash
+     git log -1 --show-signature
+     ```
+
 ---
 
 ## 🔄 Uninstallation & Rollback
@@ -261,7 +301,9 @@ PulsarKey/
 ├── Cargo.toml                                 # Rust build manifest (pulsarkey & cosmic-fido2)
 ├── src/
 │   ├── main.rs                                # CLI entry point (setup, uninstall, status)
-│   └── applet.rs                              # COSMIC StatusNotifierItem panel applet
+│   ├── applet.rs                              # COSMIC StatusNotifierItem panel applet
+│   ├── config.rs                              # Config persistence (~/.config/pulsarkey/config.json)
+│   └── ssh_setup.rs                           # Hardware SSH & Git commit signing wizard
 ├── packaging/
 │   ├── build_deb.sh                           # Automated Debian .deb builder
 │   ├── README.md                              # Packaging guide
@@ -275,7 +317,7 @@ PulsarKey/
 │       ├── ci.yml                             # Continuous integration (build, test, appstream)
 │       └── release.yml                        # Automated GitHub Releases & .deb distribution
 ├── dist/
-│   └── pulsarkey_1.0.0_amd64.deb              # Pre-compiled native Debian package
+│   └── pulsarkey_1.1.0_amd64.deb              # Pre-compiled native Debian package
 ├── Makefile                                   # 'make build', 'make install', 'make deb'
 ├── LICENSE                                    # MIT License
 └── README.md                                  # Documentation

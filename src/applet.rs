@@ -298,6 +298,17 @@ impl Tray for YubiKeyApplet {
                 ..Default::default()
             }
             .into(),
+            // Action: Hardware SSH & Git Signing
+            StandardItem {
+                label: "🔑 Hardware SSH & Git Signing (Terminal)...".into(),
+                activate: Box::new(|_| {
+                    let _ = Command::new("cosmic-term")
+                        .args(["-e", "pulsarkey", "ssh-setup"])
+                        .spawn();
+                }),
+                ..Default::default()
+            }
+            .into(),
             // Action: Full Status Dashboard
             StandardItem {
                 label: "📊 View Security Status (Terminal)...".into(),

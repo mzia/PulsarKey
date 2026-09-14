@@ -46,6 +46,11 @@
     <binary>cosmic-fido2</binary>
   </provides>
   <releases>
+    <release version="1.1.0" date="2026-09-14">
+      <description>
+        <p>Added Hardware-Backed SSH &amp; Git Signing Wizard (pulsarkey ssh-setup), Presence Sentinel auto-lock on key removal, and Polkit GUI elevation integration.</p>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-09-14">
       <description>
         <p>Initial release of PulsarKey featuring COSMIC Greeter support, YubiKey C Bio hardware user verification, and StatusNotifierItem desktop panel applet.</p>

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 ARCH="amd64"
 PKG_DIR="packaging/deb/pulsarkey_${VERSION}_${ARCH}"
 
@@ -126,6 +126,11 @@ cat << 'EOF' > "${PKG_DIR}/usr/share/metainfo/io.github.mzia.PulsarKey.metainfo.
     <binary>cosmic-fido2</binary>
   </provides>
   <releases>
+    <release version="1.1.0" date="2026-09-14">
+      <description>
+        <p>Adds Hardware-Backed SSH &amp; Git Signing Wizard (pulsarkey ssh-setup), Presence Sentinel auto-lock on key removal, and Polkit GUI authentication.</p>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-09-14">
       <description>
         <p>Initial stable release of PulsarKey featuring full COSMIC Greeter biometric integration, PAM sudo authentication, and real-time StatusNotifierItem panel applet.</p>
@@ -158,6 +163,9 @@ Description: Hardware-backed FIDO2 & Biometric Authentication Manager for COSMIC
  Features:
   * Zero-delay lockscreen unlocking with COSMIC greeter
   * Passwordless / single-touch sudo authentication
+  * Hardware-backed SSH key generation & Git commit signing
+  * Presence Sentinel auto-lock on key removal
+  * Polkit graphical elevation integration
   * Native COSMIC desktop panel StatusNotifierItem applet
   * Real-time USB hardware monitoring and biometric sensor testing
 EOF
@@ -185,6 +193,8 @@ case "$1" in
         echo " Next steps:"
         echo "  - To configure your YubiKey for COSMIC greeter & sudo, run:"
         echo "      sudo pulsarkey setup"
+        echo "  - To configure hardware SSH and Git commit signing, run:"
+        echo "      pulsarkey ssh-setup"
         echo "  - The COSMIC Panel Applet will launch on your next login,"
         echo "    or start it immediately with:"
         echo "      pulsarkey applet &"
@@ -211,5 +221,7 @@ EOF
 chmod 755 "${PKG_DIR}/DEBIAN/prerm"
 
 # Build package
-dpkg-deb --build "${PKG_DIR}" "packaging/pulsarkey_${VERSION}_${ARCH}.deb"
-echo "✅ Successfully generated packaging/pulsarkey_${VERSION}_${ARCH}.deb"
+mkdir -p dist packaging
+dpkg-deb --build "${PKG_DIR}" "dist/pulsarkey_${VERSION}_${ARCH}.deb"
+cp "dist/pulsarkey_${VERSION}_${ARCH}.deb" "packaging/pulsarkey_${VERSION}_${ARCH}.deb"
+echo "✅ Successfully generated dist/pulsarkey_${VERSION}_${ARCH}.deb"

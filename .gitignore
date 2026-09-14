@@ -1,4 +1,5 @@
 /target
 packaging/deb/
+packaging/*.deb
 *.log
 .DS_Store
