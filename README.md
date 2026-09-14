@@ -62,14 +62,6 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 
 ---
 
-## 🌟 The Story Behind the Name
-
-In astronomy, a **Pulsar** is a dense, rapidly rotating celestial neutron star that emits precise, rhythmic pulses of electromagnetic radiation across the cosmos. 
-
-When your FIDO2 security key awaits your biometric fingerprint or touch presence, its LED sensor pulses with a steady, rhythmic beacon of light. **PulsarKey** bridges the celestial theme of System76's **COSMIC** desktop with the hardware heartbeat of your physical security token.
-
----
-
 ## ✨ Key Features
 
 - 🔒 **Zero-Lag Lockscreen Integration**: Solves the COSMIC Greeter empty-submit filter via an interactive prompt (<kbd>Space</kbd> + <kbd>Enter</kbd>), preventing premature key blinking immediately upon locking and prompting only when you log back in.
