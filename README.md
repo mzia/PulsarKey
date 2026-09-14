@@ -99,6 +99,8 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 
 - 🔒 **Zero-Lag Lockscreen Integration**: Solves the COSMIC Greeter empty-submit filter via an interactive prompt (<kbd>Space</kbd> + <kbd>Enter</kbd>), preventing premature key blinking immediately upon locking and prompting only when you log back in.
 - ⚡ **Touch & Biometric Sudo**: Authenticate `sudo` commands instantly with a single touch or fingerprint scan.
+- 🪟 **Polkit GUI Elevation**: Authorize graphical administrative dialogs (Pop!_Shop, Eddy, COSMIC Settings, and `pkexec`) with a simple fingerprint scan on your physical token.
+- 🛡️ **Presence Sentinel (Auto-Lock on Removal)**: Automatically locks your COSMIC desktop session (`loginctl lock-session`) the second your security key is unplugged. Easily toggled on/off from the panel applet or CLI.
 - 🖥️ **Native COSMIC Top Bar Applet**: StatusNotifierItem tray applet featuring real-time USB hardware detection, PAM configuration health checks, session locking, and one-click biometric diagnostics.
 - 🧬 **Hardware User Verification (UV)**: Enforces FIDO2 `+presence+verification` assertions, perfectly supporting biometric keys like the **YubiKey C Bio**.
 - 🛡️ **Anti-Lockout & Safe Rollback**: Never locks you out of your desktop. Standard password authentication remains available as a fallback (`nouserok`), and `pulsarkey uninstall` cleanly restores original PAM configs.
@@ -167,7 +169,10 @@ The PulsarKey applet provides an interactive menu directly from the COSMIC panel
 ─────────────────────────────────
 🔒 Lockscreen: FIDO2 (Space+Enter)
 ⚡ Sudo Auth:   FIDO2 (Direct Touch)
+🛡️ Polkit GUI:  FIDO2 (Direct Touch)
 👥 Enrolled:    1 Key (Biometrics: Yes)
+─────────────────────────────────
+[✓] 🛡️ Auto-Lock on Key Removal
 ─────────────────────────────────
 🔍 Test Fingerprint Sensor...
 🚀 Setup / Add Key (Terminal)...
@@ -196,6 +201,8 @@ COSMIC udev rules:       Configured
 System Credential Map:   Present (1 keys registered, Biometrics/UV: Enabled)
 PAM sudo:                FIDO2 Enabled (Interactive: No (Direct touch))
 PAM cosmic-greeter:      FIDO2 Enabled (Interactive: Yes)
+PAM polkit-1 (GUI):      FIDO2 Enabled (Interactive: No (Direct touch))
+Sentinel Auto-Lock:      Enabled (locks desktop on removal)
 
 Hardware Detection:
   Device type: YubiKey C Bio - FIDO Edition
@@ -220,6 +227,17 @@ Hardware Detection:
    - Notice the key remains dormant until you are ready.
    - Press <kbd>Space</kbd> followed by <kbd>Enter</kbd>.
    - The green sensor ring pulses — scan your registered fingerprint to unlock instantly!
+
+3. **Test Polkit GUI Elevation**:
+   ```bash
+   pkexec whoami
+   ```
+   *Touch your YubiKey sensor when prompted — the graphical authorization succeeds instantly without typing your password.*
+
+4. **Test Presence Sentinel (Auto-Lock on Removal)**:
+   - Toggle Auto-Lock to `[✓]` in the panel applet (or run `pulsarkey autolock enable`).
+   - Unplug your YubiKey from the USB port.
+   - PulsarKey instantly triggers `loginctl lock-session`, securing your desktop the moment you step away.
 
 ---
 

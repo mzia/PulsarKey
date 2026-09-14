@@ -10,8 +10,11 @@ const MAPPING_FILE: &str = "/etc/yubico/u2f_keys";
 const UDEV_RULE_FILE: &str = "/etc/udev/rules.d/70-yubikey-cosmic.rules";
 const PAM_SUDO: &str = "/etc/pam.d/sudo";
 const PAM_GREETER: &str = "/etc/pam.d/cosmic-greeter";
+const PAM_POLKIT: &str = "/etc/pam.d/polkit-1";
+const TEMPLATE_POLKIT: &str = "/usr/lib/pam.d/polkit-1";
 
 mod applet;
+mod config;
 
 #[derive(Parser)]
 #[command(
@@ -27,7 +30,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Setup and configure YubiKey FIDO2 for COSMIC greeter & sudo
+    /// Setup and configure YubiKey FIDO2 for COSMIC greeter, sudo & polkit
     Setup {
         /// Force re-installation of dependencies
         #[arg(long)]
@@ -46,6 +49,12 @@ enum Commands {
         /// Install desktop autostart so the applet launches automatically on login
         #[arg(long)]
         install_autostart: bool,
+    },
+    /// View or configure Auto-Lock on YubiKey removal
+    Autolock {
+        /// Action: "enable", "disable", or "status"
+        #[arg(value_name = "ACTION")]
+        action: Option<String>,
     },
 }
 
@@ -72,6 +81,33 @@ fn main() {
             tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(applet::run_applet());
+        }
+        Commands::Autolock { action } => {
+            handle_autolock(action);
+        }
+    }
+}
+
+fn handle_autolock(action: Option<String>) {
+    let mut cfg = config::load_config();
+    match action.as_deref() {
+        Some("enable") | Some("on") | Some("1") => {
+            cfg.autolock = true;
+            let _ = config::save_config(&cfg);
+            println!("{} Auto-Lock on YubiKey removal: {}", "🛡️".green(), "ENABLED".bold().green());
+        }
+        Some("disable") | Some("off") | Some("0") => {
+            cfg.autolock = false;
+            let _ = config::save_config(&cfg);
+            println!("{} Auto-Lock on YubiKey removal: {}", "🛡️".yellow(), "DISABLED".bold().yellow());
+        }
+        Some("status") | None => {
+            let state = if cfg.autolock { "ENABLED".green() } else { "DISABLED".yellow() };
+            println!("🛡️ Auto-Lock on YubiKey removal is currently: {}", state.bold());
+            println!("To toggle: {}", "pulsarkey autolock [enable|disable]".cyan());
+        }
+        Some(other) => {
+            eprintln!("Unknown action: '{}'. Please use 'enable', 'disable', or 'status'.", other);
         }
     }
 }
@@ -276,7 +312,7 @@ fn run_setup(reinstall: bool) {
         println!("{} Synchronized {}", "✅".green(), user_key_file.display());
     }
 
-    // 6. Update PAM Files
+    // 6. Update PAM Files (Sudo, COSMIC Greeter, Polkit GUI)
     println!("\n{}", "📝 Step 6: Updating PAM configurations...".bold());
     let sudo_pam_line = format!(
         "auth sufficient pam_u2f.so authfile={} cue [cue_prompt=Scan your fingerprint...] nouserok",
@@ -286,16 +322,22 @@ fn run_setup(reinstall: bool) {
         "auth sufficient pam_u2f.so authfile={} interactive [prompt=Press Space then Enter to scan YubiKey...] cue [cue_prompt=Scan your fingerprint...] nouserok",
         MAPPING_FILE
     );
+    let polkit_pam_line = format!(
+        "auth sufficient pam_u2f.so authfile={} cue [cue_prompt=Scan your fingerprint...] nouserok",
+        MAPPING_FILE
+    );
 
     update_pam_file(PAM_SUDO, &sudo_pam_line);
     update_pam_file(PAM_GREETER, &greeter_pam_line);
+    update_pam_file(PAM_POLKIT, &polkit_pam_line);
 
     println!("\n{}", "==================================================".green());
     println!("{}", "🎉 Configuration finished successfully!".bold().green());
     println!("{}", "==================================================".green());
     println!("Verification Steps:");
-    println!("  1. Open a new terminal and test: {}", "sudo -k && sudo whoami".bold().cyan());
-    println!("  2. Lock your screen with {} to test biometric unlock.", "Super + L".bold().cyan());
+    println!("  1. Sudo CLI:             {}", "sudo -k && sudo whoami".bold().cyan());
+    println!("  2. Polkit GUI dialogs:   {}", "pkexec whoami".bold().cyan());
+    println!("  3. COSMIC Lockscreen:    Lock with {} and press Space then Enter.", "Super + L".bold().cyan());
 }
 
 fn enroll_key(username_opt: Option<&str>, user_verification: bool) -> Result<String, String> {
@@ -330,27 +372,37 @@ fn enroll_key(username_opt: Option<&str>, user_verification: bool) -> Result<Str
 
 fn update_pam_file(path: &str, line_to_insert: &str) {
     let p = Path::new(path);
-    if !p.exists() {
-        println!("{} {} does not exist, skipping.", "[-]".yellow(), path);
-        return;
-    }
-
-    let file = match File::open(p) {
-        Ok(f) => f,
-        Err(e) => {
-            eprintln!("{} Could not open {}: {}", "❌".red(), path, e);
-            return;
-        }
-    };
-
-    let reader = BufReader::new(file);
     let mut clean_lines: Vec<String> = Vec::new();
 
-    for line_res in reader.lines() {
-        if let Ok(line) = line_res {
+    if !p.exists() {
+        // If polkit-1 doesn't exist in /etc/pam.d, initialize it from system template in /usr/lib/pam.d
+        if path == PAM_POLKIT && Path::new(TEMPLATE_POLKIT).exists() {
+            println!("Initializing {} from system template...", path.cyan());
+            if let Ok(f) = File::open(TEMPLATE_POLKIT) {
+                for l in BufReader::new(f).lines().flatten() {
+                    if !l.contains("pam_u2f.so") {
+                        clean_lines.push(l);
+                    }
+                }
+            }
+        } else {
+            println!("{} {} does not exist, skipping.", "[-]".yellow(), path);
+            return;
+        }
+    } else {
+        let file = match File::open(p) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("{} Could not open {}: {}", "❌".red(), path, e);
+                return;
+            }
+        };
+
+        let reader = BufReader::new(file);
+        for line_res in reader.lines().flatten() {
             // Strip any existing pam_u2f lines
-            if !line.contains("pam_u2f.so") {
-                clean_lines.push(line);
+            if !line_res.contains("pam_u2f.so") {
+                clean_lines.push(line_res);
             }
         }
     }
@@ -358,7 +410,7 @@ fn update_pam_file(path: &str, line_to_insert: &str) {
     // Insert the new line at the top
     clean_lines.insert(0, line_to_insert.to_string());
 
-    let mut out = match OpenOptions::new().write(true).truncate(true).open(p) {
+    let mut out = match OpenOptions::new().write(true).create(true).truncate(true).open(p) {
         Ok(f) => f,
         Err(e) => {
             eprintln!("{} Could not write to {}: {}", "❌".red(), path, e);
@@ -383,7 +435,7 @@ fn run_uninstall(purge: bool) {
     println!("{}", "🔄 Reverting FIDO2 YubiKey configuration...".bold().yellow());
     println!("{}", "==================================================".yellow());
 
-    // 1. Remove PAM lines
+    // 1. Remove PAM lines from Sudo, Greeter, Polkit
     for pam_file in [PAM_SUDO, PAM_GREETER] {
         if Path::new(pam_file).exists() {
             println!("Cleaning up {}...", pam_file);
@@ -403,6 +455,13 @@ fn run_uninstall(purge: bool) {
             }
             println!("{} Removed pam_u2f from {}", "✅".green(), pam_file);
         }
+    }
+
+    // Clean up /etc/pam.d/polkit-1
+    if Path::new(PAM_POLKIT).exists() {
+        println!("Restoring system default for {}...", PAM_POLKIT);
+        let _ = fs::remove_file(PAM_POLKIT);
+        println!("{} Removed override {}", "✅".green(), PAM_POLKIT);
     }
 
     // 2. Remove udev rule
@@ -495,6 +554,16 @@ fn run_status() {
     // Check PAM cosmic-greeter
     check_pam_status("cosmic-greeter", PAM_GREETER);
 
+    // Check PAM polkit-1
+    check_pam_status("polkit-1 (GUI)", PAM_POLKIT);
+
+    // Check Auto-Lock
+    let cfg = config::load_config();
+    println!(
+        "Sentinel Auto-Lock:      {}",
+        if cfg.autolock { "Enabled (locks desktop on removal)".green() } else { "Disabled".yellow() }
+    );
+
     // Check connected YubiKey
     println!("\nHardware Detection:");
     let yk_output = Command::new("ykman").arg("info").output();
@@ -513,7 +582,7 @@ fn run_status() {
 fn check_pam_status(name: &str, path: &str) {
     let p = Path::new(path);
     if !p.exists() {
-        println!("PAM {:<20} {}", format!("{}:", name), "File not found".red());
+        println!("PAM {:<20} {}", format!("{}:", name), "Standard (Password only)".yellow());
         return;
     }
 

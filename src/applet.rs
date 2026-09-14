@@ -8,33 +8,61 @@ use std::time::Duration;
 const MAPPING_FILE: &str = "/etc/yubico/u2f_keys";
 const PAM_SUDO: &str = "/etc/pam.d/sudo";
 const PAM_GREETER: &str = "/etc/pam.d/cosmic-greeter";
+const PAM_POLKIT: &str = "/etc/pam.d/polkit-1";
 
 #[derive(Clone, Debug)]
 pub struct YubiKeyApplet {
     pub device_name: String,
     pub is_connected: bool,
+    pub was_connected: bool,
     pub lockscreen_status: String,
     pub sudo_status: String,
+    pub polkit_status: String,
     pub keys_count: usize,
     pub has_uv: bool,
+    pub autolock_enabled: bool,
 }
 
 impl YubiKeyApplet {
     pub fn new() -> Self {
+        let cfg = crate::config::load_config();
         let mut applet = Self {
             device_name: "Scanning...".to_string(),
             is_connected: false,
+            was_connected: false,
             lockscreen_status: "Unknown".to_string(),
             sudo_status: "Unknown".to_string(),
+            polkit_status: "Unknown".to_string(),
             keys_count: 0,
             has_uv: false,
+            autolock_enabled: cfg.autolock,
         };
         applet.refresh();
+        // Sync initial state so it doesn't fire lock on startup
+        applet.was_connected = applet.is_connected;
         applet
+    }
+
+    pub fn toggle_autolock(&mut self) {
+        self.autolock_enabled = !self.autolock_enabled;
+        let mut cfg = crate::config::load_config();
+        cfg.autolock = self.autolock_enabled;
+        let _ = crate::config::save_config(&cfg);
+
+        let status_str = if self.autolock_enabled { "Enabled" } else { "Disabled" };
+        let _ = Command::new("notify-send")
+            .args([
+                "-i",
+                "auth-fingerprint-symbolic",
+                "PulsarKey Sentinel",
+                &format!("Auto-Lock on removal: {}", status_str),
+            ])
+            .status();
     }
 
     pub fn refresh(&mut self) {
         // 1. Hardware detection
+        let new_connected;
         let yk_output = Command::new("ykman").arg("info").output();
         match yk_output {
             Ok(out) if out.status.success() => {
@@ -46,7 +74,7 @@ impl YubiKeyApplet {
                     .unwrap_or_else(|| "YubiKey Detected".to_string());
 
                 self.device_name = first_line;
-                self.is_connected = true;
+                new_connected = true;
             }
             _ => {
                 // Fallback check on hidraw devices with Yubico vendor ID (1050)
@@ -66,13 +94,31 @@ impl YubiKeyApplet {
 
                 if has_yubico_hid {
                     self.device_name = "YubiKey (Connected)".to_string();
-                    self.is_connected = true;
+                    new_connected = true;
                 } else {
                     self.device_name = "No YubiKey Detected".to_string();
-                    self.is_connected = false;
+                    new_connected = false;
                 }
             }
         }
+
+        // Feature 1: Presence Sentinel - Auto-Lock on key removal
+        if self.was_connected && !new_connected && self.autolock_enabled {
+            println!("🚨 YubiKey removed with Auto-Lock enabled! Locking COSMIC session...");
+            let _ = Command::new("notify-send")
+                .args([
+                    "-u",
+                    "critical",
+                    "-i",
+                    "auth-fingerprint-symbolic",
+                    "PulsarKey Sentinel",
+                    "YubiKey removed — COSMIC desktop locked.",
+                ])
+                .status();
+            let _ = Command::new("loginctl").arg("lock-session").status();
+        }
+        self.was_connected = new_connected;
+        self.is_connected = new_connected;
 
         // 2. Mapping check
         if let Ok(content) = fs::read_to_string(MAPPING_FILE) {
@@ -83,9 +129,10 @@ impl YubiKeyApplet {
             self.has_uv = false;
         }
 
-        // 3. PAM status checks
+        // 3. PAM status checks (Lockscreen, Sudo, Polkit)
         self.sudo_status = check_pam(PAM_SUDO);
         self.lockscreen_status = check_pam(PAM_GREETER);
+        self.polkit_status = check_pam(PAM_POLKIT);
     }
 }
 
@@ -134,8 +181,12 @@ impl Tray for YubiKeyApplet {
             icon_pixmap: Vec::new(),
             title: "PulsarKey FIDO2 Security".into(),
             description: format!(
-                "Device: {}\nLockscreen: {}\nSudo: {}",
-                self.device_name, self.lockscreen_status, self.sudo_status
+                "Device: {}\nLockscreen: {}\nSudo: {}\nPolkit GUI: {}\nAuto-Lock: {}",
+                self.device_name,
+                self.lockscreen_status,
+                self.sudo_status,
+                self.polkit_status,
+                if self.autolock_enabled { "Enabled" } else { "Disabled" }
             ),
         }
     }
@@ -161,18 +212,35 @@ impl Tray for YubiKeyApplet {
             }
             .into(),
             StandardItem {
-                label: format!("⚡ Sudo Auth: {}", self.sudo_status),
+                label: format!("⚡ Sudo Auth:   {}", self.sudo_status),
+                enabled: false,
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: format!("🛡️ Polkit GUI:  {}", self.polkit_status),
                 enabled: false,
                 ..Default::default()
             }
             .into(),
             StandardItem {
                 label: format!(
-                    "👥 Enrolled Keys: {} (Biometrics: {})",
+                    "👥 Enrolled:    {} Key(s) (Biometrics: {})",
                     self.keys_count,
                     if self.has_uv { "Yes" } else { "No" }
                 ),
                 enabled: false,
+                ..Default::default()
+            }
+            .into(),
+            MenuItem::Separator,
+            // Feature 1: Presence Sentinel - Auto-Lock Checkmark Toggle
+            CheckmarkItem {
+                label: "🛡️ Auto-Lock on Key Removal".into(),
+                checked: self.autolock_enabled,
+                activate: Box::new(|tray: &mut YubiKeyApplet| {
+                    tray.toggle_autolock();
+                }),
                 ..Default::default()
             }
             .into(),
@@ -185,7 +253,7 @@ impl Tray for YubiKeyApplet {
                         let _ = Command::new("notify-send")
                             .args([
                                 "-i",
-                                "security-high-symbolic",
+                                "auth-fingerprint-symbolic",
                                 "YubiKey Biometric Test",
                                 "Please scan your fingerprint on the YubiKey...",
                             ])
@@ -197,7 +265,7 @@ impl Tray for YubiKeyApplet {
                                 let _ = Command::new("notify-send")
                                     .args([
                                         "-i",
-                                        "security-high-symbolic",
+                                        "auth-fingerprint-symbolic",
                                         "YubiKey Bio",
                                         "✅ Fingerprint verified successfully!",
                                     ])
@@ -268,9 +336,9 @@ pub async fn run_applet() {
     let applet = YubiKeyApplet::new();
     let handle = applet.spawn().await.expect("Failed to spawn COSMIC status tray applet");
 
-    // Dynamic monitor loop: checks YubiKey presence every 3 seconds and updates icon
+    // Dynamic monitor loop: checks YubiKey presence every 2 seconds for responsive auto-lock
     loop {
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
         let _ = handle
             .update(|tray| {
                 tray.refresh();
