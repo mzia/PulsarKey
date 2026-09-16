@@ -97,10 +97,12 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 
 ## ✨ Key Features
 
+- ⚙️ **COSMIC Native Settings App (`pulsarkey-settings` / `pulsarkey gui`)**: Complete graphical desktop control panel built with Iced / COSMIC styling, featuring tabs for Overview, Security Profiles, Biometrics & PIN, Audit Journal, Backup Key Assistant, and Emergency Recovery Runbook.
+- 🛟 **Emergency Paper Key & Rescue Suite (`pulsarkey rescue`)**: Generates 8 high-entropy, cryptographically hashed one-time recovery paper tokens (`XXXX-XXXX-XXXX-XXXX`), printable emergency rescue certificates, automated offline rescue USB scripts, and full single-user / Live USB PAM bypass runbooks.
 - 🔒 **Zero-Lag Lockscreen Integration**: Solves the COSMIC Greeter empty-submit filter via an interactive prompt (<kbd>Space</kbd> + <kbd>Enter</kbd>), preventing premature key blinking immediately upon locking and prompting only when you log back in.
 - ⚡ **Touch & Biometric Sudo**: Authenticate `sudo` commands instantly with a single touch or fingerprint scan.
 - 🪟 **Polkit GUI Elevation**: Authorize graphical administrative dialogs (Pop!_Shop, Eddy, COSMIC Settings, and `pkexec`) with a simple fingerprint scan on your physical token.
-- 🛡️ **Security Strictness Profiles**: Switch authentication modes on the fly between **Convenience (1FA)**, **Fortress (True 2FA: Password + Touch)**, and **Lockdown (Hardware Mandatory)** from the panel applet or CLI (`pulsarkey profile`).
+- 🛡️ **Security Strictness Profiles**: Switch authentication modes on the fly between **Convenience (1FA)**, **Fortress (True 2FA: Password + Touch)**, and **Lockdown (Hardware Mandatory)** from the panel applet, GUI, or CLI (`pulsarkey profile`).
 - 📜 **Authentication Audit Journal**: Real-time logging of authentication, elevation, and USB hardware events with an instant panel applet submenu (**Recent Pulses**) and formatted CLI viewer (`pulsarkey audit`).
 - 👯 **Backup Key Pairing & Recovery**: Guided redundant key enrollment and verification (`pulsarkey backup`) ensuring fail-safe multi-key desktop security.
 - 🧬 **Native Biometric & Fingerprint Manager**: Direct on-device biometric enrollment, template renaming, fingerprint deletion, and FIDO2 hardware PIN management (`pulsarkey bio` & `pulsarkey pin`) without requiring external GUI tools.
@@ -120,9 +122,9 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 #### Option A: Native Debian Package (COSMIC Store / APT)
 Download the latest `.deb` package from [Releases](https://github.com/mzia/PulsarKey/releases):
 ```bash
-sudo apt install ./dist/pulsarkey_1.3.0_amd64.deb
+sudo apt install ./dist/pulsarkey_1.4.0_amd64.deb
 ```
-*(Or right-click `pulsarkey_1.3.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
+*(Or right-click `pulsarkey_1.4.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
 
 #### Option B: Build from Source
 ```bash
@@ -171,6 +173,7 @@ The PulsarKey applet provides an interactive menu directly from the COSMIC panel
 
 ```text
 🟢 YubiKey C Bio - FIDO Edition
+⚙️ Open PulsarKey Settings...
 ─────────────────────────────────
 🔒 Lockscreen: FIDO2 (Space+Enter)
 ⚡ Sudo Auth:   FIDO2 (Direct Touch)
@@ -185,6 +188,7 @@ The PulsarKey applet provides an interactive menu directly from the COSMIC panel
 🚀 Setup / Add Key (Terminal)...
 🧬 Biometric Fingerprint Manager (Terminal)...
 👯 Backup Key Assistant (Terminal)...
+🛟 Emergency Rescue Runbook (Terminal)...
 🔑 Hardware SSH & Git Signing (Terminal)...
 📊 View Security Status (Terminal)...
 🔒 Lock Screen Now
@@ -393,11 +397,29 @@ pulsarkey backup test
    pulsarkey bio
    ```
 
-7. **Test Audit Journal & Profiles**:
+8. **Launch Native Settings Control Panel (GUI)**:
    ```bash
-   pulsarkey audit
-   pulsarkey profile
+   pulsarkey gui        # Or pulsarkey-settings
    ```
+   *Opens the modern, dark-themed Iced desktop window with full tabbed controls for hardware telemetry, profile switching, biometrics, audit logs, and emergency rescue.*
+
+9. **Generate Emergency Paper Recovery Key**:
+   ```bash
+   pulsarkey rescue generate
+   ```
+   *Generates 8 high-entropy, SHA-256 hashed recovery tokens and saves a printable emergency kit to your Desktop (`PulsarKey-Emergency-Recovery-Kit.txt`).*
+
+10. **View Offline Emergency Runbook**:
+    ```bash
+    pulsarkey rescue runbook
+    ```
+    *Provides step-by-step offline procedures to recover root access via systemd-boot single-user mode or Live USB chroot if all hardware tokens are destroyed.*
+
+11. **Create Emergency Rescue USB Script**:
+    ```bash
+    sudo pulsarkey rescue usb /media/$USER/<USB_NAME>
+    ```
+    *Writes an automated offline rescue shell script (`pulsar-rescue.sh`) with auto-LUKS detection to restore password PAM access from any Live USB environment.*
 
 ---
 
@@ -418,9 +440,13 @@ sudo pulsarkey uninstall --purge-packages
 
 ```
 PulsarKey/
-├── Cargo.toml                                 # Rust build manifest (pulsarkey & cosmic-fido2)
+├── Cargo.toml                                 # Rust build manifest (pulsarkey, cosmic-fido2, pulsarkey-settings)
 ├── src/
-│   ├── main.rs                                # CLI entry point (setup, uninstall, status)
+│   ├── lib.rs                                 # Core library & shared module declarations
+│   ├── main.rs                                # CLI entry point (setup, uninstall, status, rescue, bio)
+│   ├── gui_main.rs                            # Dedicated binary entry point for pulsarkey-settings GUI
+│   ├── gui.rs                                 # COSMIC native Iced GUI desktop control panel
+│   ├── rescue.rs                              # Emergency paper recovery tokens & offline rescue runbook
 │   ├── applet.rs                              # COSMIC StatusNotifierItem panel applet
 │   ├── audit.rs                               # Authentication Audit Journal ('Recent Pulses')
 │   ├── backup.rs                              # Backup Key pairing & redundancy assistant
@@ -441,7 +467,7 @@ PulsarKey/
 │       ├── ci.yml                             # Continuous integration (build, test, appstream)
 │       └── release.yml                        # Automated GitHub Releases & .deb distribution
 ├── dist/
-│   └── pulsarkey_1.3.0_amd64.deb              # Pre-compiled native Debian package
+│   └── pulsarkey_1.4.0_amd64.deb              # Pre-compiled native Debian package
 ├── Makefile                                   # 'make build', 'make install', 'make deb'
 ├── LICENSE                                    # MIT License
 └── README.md                                  # Documentation

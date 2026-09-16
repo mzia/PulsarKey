@@ -44,8 +44,14 @@
   <provides>
     <binary>pulsarkey</binary>
     <binary>cosmic-fido2</binary>
+    <binary>pulsarkey-settings</binary>
   </provides>
   <releases>
+    <release version="1.4.0" date="2026-09-15">
+      <description>
+        <p>Introduces COSMIC Native Settings App ('pulsarkey-settings' / 'pulsarkey gui') with full graphical control panel and Emergency Paper Recovery Key &amp; Offline Rescue Runbook Suite ('pulsarkey rescue').</p>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-09-15">
       <description>
         <p>Introduces Security Strictness Profiles (Convenience, Fortress 2FA, Lockdown), Authentication Audit Journal ('Recent Pulses'), and Backup Key Pairing &amp; Recovery Assistant.</p>
