@@ -7,7 +7,7 @@
     <key>CFBundleDisplayName</key>
     <string>PulsarKey</string>
     <key>CFBundleExecutable</key>
-    <string>pulsarkey-settings</string>
+    <string>pulsarkey</string>
     <key>CFBundleIconFile</key>
     <string>PulsarKey</string>
     <key>CFBundleIdentifier</key>

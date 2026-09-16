@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use colored::*;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -17,11 +17,15 @@ use pulsarkey::*;
     name = "pulsarkey",
     author = "M. Zia <mzia@pop-os.local>",
     version,
-    about = "Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC"
+    about = "Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC & macOS"
 )]
 struct Cli {
+    /// Open the graphical Settings control panel view
+    #[arg(short = 'g', long)]
+    gui: bool,
+
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -112,60 +116,149 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
 
+    // Fast-path: direct -g / --gui flag
+    if cli.gui {
+        if let Err(e) = gui::run_gui() {
+            eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
     match cli.command {
-        Commands::Setup { reinstall_packages } => {
+        Some(Commands::Setup { reinstall_packages }) => {
             ensure_root("setup");
             run_setup(reinstall_packages);
         }
-        Commands::Uninstall { purge_packages } => {
+        Some(Commands::Uninstall { purge_packages }) => {
             ensure_root("uninstall");
             run_uninstall(purge_packages);
         }
-        Commands::Status => {
+        Some(Commands::Status) => {
             run_status();
         }
-        Commands::Applet { install_autostart } => {
+        Some(Commands::Applet { install_autostart }) => {
             if install_autostart {
                 install_applet_autostart();
             }
-            println!("🌌 Launching PulsarKey COSMIC Panel Applet...");
+            println!("🌌 Launching PulsarKey Security Applet...");
             tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(applet::run_applet());
         }
-        Commands::Autolock { action } => {
+        Some(Commands::Autolock { action }) => {
             handle_autolock(action);
         }
-        Commands::SshSetup {
+        Some(Commands::SshSetup {
             no_resident,
             no_git_sign,
             key_path,
-        } => {
+        }) => {
             ssh_setup::run_ssh_setup(no_resident, no_git_sign, key_path);
         }
-        Commands::Bio { action } => {
+        Some(Commands::Bio { action }) => {
             bio::handle_bio_cli(action);
         }
-        Commands::Pin { action } => {
+        Some(Commands::Pin { action }) => {
             bio::handle_pin_cli(action);
         }
-        Commands::Profile { action } => {
+        Some(Commands::Profile { action }) => {
             profiles::handle_profile_cli(action);
         }
-        Commands::Audit { clear } => {
+        Some(Commands::Audit { clear }) => {
             audit::print_audit_log(clear);
         }
-        Commands::Backup { action } => {
+        Some(Commands::Backup { action }) => {
             backup::handle_backup_cli(action);
         }
-        Commands::Gui | Commands::Settings => {
+        Some(Commands::Gui) | Some(Commands::Settings) => {
             if let Err(e) = gui::run_gui() {
                 eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
                 std::process::exit(1);
             }
         }
-        Commands::Rescue { action, arg } => {
+        Some(Commands::Rescue { action, arg }) => {
             rescue::handle_rescue_cli(action, arg);
+        }
+        None => {
+            if std::io::stdin().is_terminal() || std::io::stdout().is_terminal() {
+                run_interactive_selection();
+            } else {
+                if let Err(e) = gui::run_gui() {
+                    eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+}
+
+/// Interactive view selection when pulsarkey is run without arguments in a terminal
+fn run_interactive_selection() {
+    println!("{}", "==================================================".cyan());
+    println!(
+        "{} {}",
+        "🌌 PulsarKey — Hardware Security Suite".bold().cyan(),
+        format!("({})", platform::get_os_display_name()).dimmed()
+    );
+    println!("{}", "==================================================".cyan());
+    println!("Please select a view or action:");
+    println!("  {}  📊 View Security Status Dashboard", "[1]".bold().green());
+    println!("  {}  ⚙️  Open Settings Control Panel (GUI Window)", "[2]".bold().green());
+    println!("  {}  🛡️  Security Strictness Profiles", "[3]".bold().green());
+    println!("  {}  🧬 On-Key Biometrics & PIN Manager", "[4]".bold().green());
+    println!("  {}  👯 Backup Key Assistant", "[5]".bold().green());
+    println!("  {}  🛟 Emergency Recovery Kit & Runbook", "[6]".bold().green());
+    println!("  {}  🔑 Hardware SSH & Git Signing Setup", "[7]".bold().green());
+    println!("  {}  🛡️  Presence Sentinel Auto-Lock", "[8]".bold().green());
+    println!("  {}  🚪 Exit", "[q]".bold().yellow());
+    println!("{}", "==================================================".cyan());
+    print!("Selection [1-8, or 2 for GUI Settings]: ");
+    let _ = io::stdout().flush();
+
+    let mut input = String::new();
+    if io::stdin().read_line(&mut input).is_ok() {
+        match input.trim().to_lowercase().as_str() {
+            "1" | "status" | "s" => {
+                println!();
+                run_status();
+            }
+            "2" | "gui" | "g" | "settings" | "" => {
+                println!("\nLaunching PulsarKey Settings GUI view...");
+                if let Err(e) = gui::run_gui() {
+                    eprintln!("Failed to launch Settings GUI: {}", e);
+                }
+            }
+            "3" | "profile" | "p" => {
+                println!();
+                profiles::handle_profile_cli(None);
+            }
+            "4" | "bio" | "b" => {
+                println!();
+                bio::handle_bio_cli(None);
+            }
+            "5" | "backup" => {
+                println!();
+                backup::handle_backup_cli(None);
+            }
+            "6" | "rescue" | "r" => {
+                println!();
+                rescue::handle_rescue_cli(None, None);
+            }
+            "7" | "ssh" => {
+                println!();
+                ssh_setup::run_ssh_setup(false, false, None);
+            }
+            "8" | "autolock" => {
+                println!();
+                handle_autolock(None);
+            }
+            "q" | "quit" | "exit" => {
+                println!("Goodbye!");
+            }
+            other => {
+                println!("Unknown option '{}'. Exiting.", other);
+            }
         }
     }
 }

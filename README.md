@@ -49,11 +49,12 @@ The wizard will:
 
 ---
 
-### 3. Open Settings or Launch Panel Applet
+### 3. Launch PulsarKey or Panel Applet
 
-- **Native Desktop GUI**:
+- **Interactive Selection Menu & Settings**:
   ```bash
-  pulsarkey gui       # or search "PulsarKey Settings" in your App Library
+  pulsarkey           # Launches interactive menu: select Settings GUI [2] or Status [1]
+  pulsarkey -g        # Direct shortcut to open Settings GUI window (or: pulsarkey gui)
   ```
 - **Top Bar Panel Applet** (COSMIC Linux):
   ```bash
