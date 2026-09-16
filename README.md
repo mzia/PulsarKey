@@ -100,6 +100,9 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 - 🔒 **Zero-Lag Lockscreen Integration**: Solves the COSMIC Greeter empty-submit filter via an interactive prompt (<kbd>Space</kbd> + <kbd>Enter</kbd>), preventing premature key blinking immediately upon locking and prompting only when you log back in.
 - ⚡ **Touch & Biometric Sudo**: Authenticate `sudo` commands instantly with a single touch or fingerprint scan.
 - 🪟 **Polkit GUI Elevation**: Authorize graphical administrative dialogs (Pop!_Shop, Eddy, COSMIC Settings, and `pkexec`) with a simple fingerprint scan on your physical token.
+- 🛡️ **Security Strictness Profiles**: Switch authentication modes on the fly between **Convenience (1FA)**, **Fortress (True 2FA: Password + Touch)**, and **Lockdown (Hardware Mandatory)** from the panel applet or CLI (`pulsarkey profile`).
+- 📜 **Authentication Audit Journal**: Real-time logging of authentication, elevation, and USB hardware events with an instant panel applet submenu (**Recent Pulses**) and formatted CLI viewer (`pulsarkey audit`).
+- 👯 **Backup Key Pairing & Recovery**: Guided redundant key enrollment and verification (`pulsarkey backup`) ensuring fail-safe multi-key desktop security.
 - 🧬 **Native Biometric & Fingerprint Manager**: Direct on-device biometric enrollment, template renaming, fingerprint deletion, and FIDO2 hardware PIN management (`pulsarkey bio` & `pulsarkey pin`) without requiring external GUI tools.
 - 🛡️ **Presence Sentinel (Auto-Lock on Removal)**: Automatically locks your COSMIC desktop session (`loginctl lock-session`) the second your security key is unplugged. Easily toggled on/off from the panel applet or CLI.
 - 🔑 **Hardware-Backed SSH & Git Signing**: Generates resident FIDO2 keys (`ed25519-sk`) on your YubiKey and configures Git to cryptographically sign all commits with your biometric touch (`pulsarkey ssh-setup`).
@@ -117,9 +120,9 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 #### Option A: Native Debian Package (COSMIC Store / APT)
 Download the latest `.deb` package from [Releases](https://github.com/mzia/PulsarKey/releases):
 ```bash
-sudo apt install ./dist/pulsarkey_1.2.0_amd64.deb
+sudo apt install ./dist/pulsarkey_1.3.0_amd64.deb
 ```
-*(Or right-click `pulsarkey_1.2.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
+*(Or right-click `pulsarkey_1.3.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
 
 #### Option B: Build from Source
 ```bash
@@ -172,13 +175,16 @@ The PulsarKey applet provides an interactive menu directly from the COSMIC panel
 🔒 Lockscreen: FIDO2 (Space+Enter)
 ⚡ Sudo Auth:   FIDO2 (Direct Touch)
 🛡️ Polkit GUI:  FIDO2 (Direct Touch)
-👥 Enrolled:    1 Key (Biometrics: Yes)
+👥 Enrolled:    2 Key(s) (Biometrics: Yes)
 ─────────────────────────────────
 [✓] 🛡️ Auto-Lock on Key Removal
+▶ 🛡️ Security Profile: Convenience (1FA)
+▶ 📜 Recent Pulses (Audit Log)
 ─────────────────────────────────
 🔍 Test Fingerprint Sensor...
 🚀 Setup / Add Key (Terminal)...
 🧬 Biometric Fingerprint Manager (Terminal)...
+👯 Backup Key Assistant (Terminal)...
 🔑 Hardware SSH & Git Signing (Terminal)...
 📊 View Security Status (Terminal)...
 🔒 Lock Screen Now
@@ -205,11 +211,13 @@ COSMIC udev rules:       Configured
 System Credential Map:   Present (2 keys registered, Biometrics/UV: Enabled)
 PAM sudo:                FIDO2 Enabled (Interactive: No (Direct touch))
 PAM cosmic-greeter:      FIDO2 Enabled (Interactive: Yes)
-PAM polkit-1 (GUI):      FIDO2 Enabled (Interactive: No (Direct touch))
+PAM polkit-1 (GUI):      Standard (Password only)
+Security Profile:        Convenience (1FA Biometric/Touch)
 Sentinel Auto-Lock:      Enabled (locks desktop on removal)
 Hardware SSH Key:        FIDO2 Active (~/.ssh/id_ed25519_sk)
 Git Commit Signing:      Enabled (SSH FIDO2 touch required)
 Biometric Engine:        Biometric Sensor Active [Prints: Enrolled (3 attempt(s) remaining), PIN: Set (8 attempt(s) remaining)]
+Key Redundancy:          Protected (2 keys enrolled)
 
 Hardware Detection:
   Device type: YubiKey C Bio - FIDO Edition
@@ -277,6 +285,73 @@ Or trigger it directly from the COSMIC panel applet menu: **🔑 Hardware SSH & 
 
 ---
 
+## 🛡️ Security Strictness Profiles
+
+PulsarKey lets you toggle authentication modes dynamically depending on your threat model:
+
+| Profile | Mode | Authentication Requirement | Fallback |
+| :--- | :--- | :--- | :--- |
+| **Convenience** | 1FA (Default) | Fingerprint or token touch alone | Password fallback enabled |
+| **Fortress** | True 2FA | **Both** account password **and** physical token touch | Password alone is insufficient |
+| **Lockdown** | Hardware Strict | Physical token strictly mandatory | **Zero password fallback** |
+
+### Switching Profiles:
+```bash
+# Check current profile & available modes
+pulsarkey profile
+
+# Switch to Fortress (True 2FA)
+sudo pulsarkey profile fortress
+
+# Switch to Lockdown (Hardware Mandatory)
+sudo pulsarkey profile lockdown
+
+# Return to Convenience Mode
+sudo pulsarkey profile convenience
+```
+*(Or switch directly from the **🛡️ Security Profile** dropdown in the COSMIC top panel applet).*
+
+---
+
+## 📜 Authentication Audit Journal (Recent Pulses)
+
+PulsarKey records security-sensitive events, elevation attempts, and physical token connections into a local audit log:
+
+```bash
+pulsarkey audit
+```
+
+### What it tracks:
+- **AUTH**: Sudo privilege escalation, Polkit GUI prompts, and COSMIC Greeter unlocks.
+- **HARDWARE**: Real-time USB token insertions and removals.
+- **SENTINEL**: Automatic desktop session lock events when the key is unplugged.
+- **SECURITY**: Profile switches, backup key enrollments, and PIN modifications.
+
+To clear the audit log at any time:
+```bash
+pulsarkey audit --clear
+```
+*(The 5 most recent pulses are also visible directly in the COSMIC panel applet under **📜 Recent Pulses**).*
+
+---
+
+## 👯 Backup Key & Recovery Assistant
+
+Ensure you are never locked out of your desktop by pairing a secondary/backup key:
+
+```bash
+# Check registered keys & SSH redundancy
+pulsarkey backup
+
+# Pair a secondary backup key
+sudo pulsarkey backup pair
+
+# Test currently connected key
+pulsarkey backup test
+```
+
+---
+
 ## 🧪 Verification & Testing
 
 1. **Test Sudo Authentication**:
@@ -318,6 +393,12 @@ Or trigger it directly from the COSMIC panel applet menu: **🔑 Hardware SSH & 
    pulsarkey bio
    ```
 
+7. **Test Audit Journal & Profiles**:
+   ```bash
+   pulsarkey audit
+   pulsarkey profile
+   ```
+
 ---
 
 ## 🔄 Uninstallation & Rollback
@@ -341,8 +422,11 @@ PulsarKey/
 ├── src/
 │   ├── main.rs                                # CLI entry point (setup, uninstall, status)
 │   ├── applet.rs                              # COSMIC StatusNotifierItem panel applet
+│   ├── audit.rs                               # Authentication Audit Journal ('Recent Pulses')
+│   ├── backup.rs                              # Backup Key pairing & redundancy assistant
 │   ├── bio.rs                                 # On-key biometric & FIDO2 PIN manager
 │   ├── config.rs                              # Config persistence (~/.config/pulsarkey/config.json)
+│   ├── profiles.rs                            # Security strictness profiles (Convenience, Fortress, Lockdown)
 │   └── ssh_setup.rs                           # Hardware SSH & Git commit signing wizard
 ├── packaging/
 │   ├── build_deb.sh                           # Automated Debian .deb builder
@@ -357,7 +441,7 @@ PulsarKey/
 │       ├── ci.yml                             # Continuous integration (build, test, appstream)
 │       └── release.yml                        # Automated GitHub Releases & .deb distribution
 ├── dist/
-│   └── pulsarkey_1.2.0_amd64.deb              # Pre-compiled native Debian package
+│   └── pulsarkey_1.3.0_amd64.deb              # Pre-compiled native Debian package
 ├── Makefile                                   # 'make build', 'make install', 'make deb'
 ├── LICENSE                                    # MIT License
 └── README.md                                  # Documentation

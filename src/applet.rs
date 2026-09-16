@@ -21,6 +21,7 @@ pub struct YubiKeyApplet {
     pub keys_count: usize,
     pub has_uv: bool,
     pub autolock_enabled: bool,
+    pub profile_name: String,
 }
 
 impl YubiKeyApplet {
@@ -36,6 +37,7 @@ impl YubiKeyApplet {
             keys_count: 0,
             has_uv: false,
             autolock_enabled: cfg.autolock,
+            profile_name: cfg.profile,
         };
         applet.refresh();
         // Sync initial state so it doesn't fire lock on startup
@@ -105,9 +107,32 @@ impl YubiKeyApplet {
             self.device_name = "No YubiKey Detected".to_string();
         }
 
+        // Hardware audit logging
+        if !self.was_connected && new_connected {
+            crate::audit::log_event(
+                "HARDWARE",
+                "YubiKey Inserted",
+                "Connected",
+                &self.device_name,
+            );
+        } else if self.was_connected && !new_connected {
+            crate::audit::log_event(
+                "HARDWARE",
+                "YubiKey Removed",
+                "Disconnected",
+                "Key removed from USB port",
+            );
+        }
+
         // Feature 1: Presence Sentinel - Auto-Lock on key removal
         if self.was_connected && !new_connected && self.autolock_enabled {
             println!("🚨 YubiKey removed with Auto-Lock enabled! Locking COSMIC session...");
+            crate::audit::log_event(
+                "SENTINEL",
+                "Auto-Lock Triggered",
+                "Locked",
+                "Desktop locked on token removal",
+            );
             let _ = Command::new("notify-send")
                 .args([
                     "-u",
@@ -132,7 +157,12 @@ impl YubiKeyApplet {
             self.has_uv = false;
         }
 
-        // 3. PAM status checks (Lockscreen, Sudo, Polkit)
+        // 3. Configuration & Profile reload
+        let cfg = crate::config::load_config();
+        self.autolock_enabled = cfg.autolock;
+        self.profile_name = cfg.profile;
+
+        // 4. PAM status checks (Lockscreen, Sudo, Polkit)
         self.sudo_status = check_pam(PAM_SUDO);
         self.lockscreen_status = check_pam(PAM_GREETER);
         self.polkit_status = check_pam(PAM_POLKIT);
@@ -247,6 +277,75 @@ impl Tray for YubiKeyApplet {
                 ..Default::default()
             }
             .into(),
+            // Feature: Security Strictness Profiles SubMenu
+            SubMenu {
+                label: format!("🛡️ Security Profile: {}", match self.profile_name.as_str() {
+                    "fortress" => "Fortress (2FA)",
+                    "lockdown" => "Lockdown (Strict)",
+                    _ => "Convenience (1FA)",
+                }),
+                submenu: vec![
+                    StandardItem {
+                        label: format!("{} Convenience (1FA Touch/Bio)", if self.profile_name == "convenience" { "●" } else { "○" }),
+                        activate: Box::new(|_| {
+                            let _ = Command::new("pkexec")
+                                .args(["pulsarkey", "profile", "convenience"])
+                                .spawn();
+                        }),
+                        ..Default::default()
+                    }
+                    .into(),
+                    StandardItem {
+                        label: format!("{} Fortress (True 2FA: Password+Touch)", if self.profile_name == "fortress" { "●" } else { "○" }),
+                        activate: Box::new(|_| {
+                            let _ = Command::new("pkexec")
+                                .args(["pulsarkey", "profile", "fortress"])
+                                .spawn();
+                        }),
+                        ..Default::default()
+                    }
+                    .into(),
+                    StandardItem {
+                        label: format!("{} Lockdown (Hardware Mandatory)", if self.profile_name == "lockdown" { "●" } else { "○" }),
+                        activate: Box::new(|_| {
+                            let _ = Command::new("pkexec")
+                                .args(["pulsarkey", "profile", "lockdown"])
+                                .spawn();
+                        }),
+                        ..Default::default()
+                    }
+                    .into(),
+                ],
+                ..Default::default()
+            }
+            .into(),
+            // Feature: Recent Pulses (Audit Log) SubMenu
+            SubMenu {
+                label: "📜 Recent Pulses (Audit Log)".into(),
+                submenu: {
+                    let mut items: Vec<MenuItem<Self>> = crate::audit::get_recent_summary_for_applet(5)
+                        .into_iter()
+                        .map(|s| StandardItem {
+                            label: s,
+                            enabled: false,
+                            ..Default::default()
+                        }.into())
+                        .collect();
+                    items.push(MenuItem::Separator);
+                    items.push(StandardItem {
+                        label: "📊 View Full Audit Log (Terminal)...".into(),
+                        activate: Box::new(|_| {
+                            let _ = Command::new("cosmic-term")
+                                .args(["-e", "bash", "-c", "pulsarkey audit; echo ''; read -p 'Press Enter to close...'"])
+                                .spawn();
+                        }),
+                        ..Default::default()
+                    }.into());
+                    items
+                },
+                ..Default::default()
+            }
+            .into(),
             MenuItem::Separator,
             // Action: Test Biometric Sensor
             StandardItem {
@@ -307,6 +406,17 @@ impl Tray for YubiKeyApplet {
                 activate: Box::new(|_| {
                     let _ = Command::new("cosmic-term")
                         .args(["-e", "pulsarkey", "bio"])
+                        .spawn();
+                }),
+                ..Default::default()
+            }
+            .into(),
+            // Action: Backup Key Assistant
+            StandardItem {
+                label: "👯 Backup Key Assistant (Terminal)...".into(),
+                activate: Box::new(|_| {
+                    let _ = Command::new("cosmic-term")
+                        .args(["-e", "sudo", "pulsarkey", "backup"])
                         .spawn();
                 }),
                 ..Default::default()
