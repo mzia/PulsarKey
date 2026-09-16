@@ -23,14 +23,15 @@ sudo apt install ./pulsarkey_1.4.0_amd64.deb
 *(Or build from source: `git clone https://github.com/mzia/PulsarKey.git && cd PulsarKey && cargo build --release && sudo make install`)*
 
 #### 🍎 macOS (Monterey 12+)
-```bash
-# 1. Install dependencies
-brew install pam-u2f ykman
-
-# 2. Install PulsarKey via Cask
-brew install --cask packaging/macos/homebrew/pulsarkey.rb
-```
-*(Or build native `.app` / `.dmg`: `./packaging/macos/build_mac.sh`)*
+Download your preferred installer from the [Latest Release](https://github.com/mzia/PulsarKey/releases):
+- **Guided Installer**: Download and run **`PulsarKey-1.4.0.pkg`**
+- **Drag-and-Drop**: Open **`PulsarKey-1.4.0.dmg`** and drag to `/Applications`
+- **Homebrew Cask**:
+  ```bash
+  brew install pam-u2f ykman
+  brew install --cask packaging/macos/homebrew/pulsarkey.rb
+  ```
+*(Or compile locally: `./packaging/macos/build_mac.sh`)*
 
 ---
 

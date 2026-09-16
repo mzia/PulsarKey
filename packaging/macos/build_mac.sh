@@ -6,12 +6,14 @@
 
 set -euo pipefail
 
-VERSION="1.4.0"
+VERSION="${1:-$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)}"
 APP_NAME="PulsarKey.app"
 BUILD_DIR="dist/macos"
 APP_BUNDLE="${BUILD_DIR}/${APP_NAME}"
 DMG_NAME="PulsarKey-${VERSION}.dmg"
 PKG_NAME="PulsarKey-${VERSION}.pkg"
+
+mkdir -p dist
 
 echo "🍎 Building PulsarKey for macOS (v${VERSION})..."
 
@@ -31,8 +33,8 @@ cp target/release/pulsarkey-settings "${APP_BUNDLE}/Contents/MacOS/pulsarkey-set
 chmod +x "${APP_BUNDLE}/Contents/MacOS/pulsarkey"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/pulsarkey-settings"
 
-# Copy Info.plist
-cp packaging/macos/Info.plist "${APP_BUNDLE}/Contents/Info.plist"
+# Copy Info.plist with version substitution
+sed "s/<string>1.4.0<\/string>/<string>${VERSION}<\/string>/g" packaging/macos/Info.plist > "${APP_BUNDLE}/Contents/Info.plist"
 
 # Copy icon if available
 if [ -f "packaging/cosmic-fido2.svg" ]; then
@@ -66,7 +68,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         echo "🎉 Created dist/${PKG_NAME}"
     fi
 else
-    echo "ℹ️ Note: Creating a native .dmg requires macOS 'hdiutil'."
+    echo "ℹ️ Note: Creating a native .dmg and .pkg requires macOS tools ('hdiutil' and 'pkgbuild')."
     echo "Creating compressed distribution tarball for macOS..."
     tar -czf "dist/PulsarKey-macOS-${VERSION}.tar.gz" -C "${BUILD_DIR}" "${APP_NAME}"
     echo "🎉 Created dist/PulsarKey-macOS-${VERSION}.tar.gz"

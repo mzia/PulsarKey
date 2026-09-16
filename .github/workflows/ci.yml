@@ -7,8 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
-    name: Build and Check
+  test-linux:
+    name: Test & Build (Pop!_OS / Linux)
     runs-on: ubuntu-24.04
 
     steps:
@@ -18,7 +18,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpam-u2f pamu2fcfg yubikey-manager appstream
+          sudo apt-get install -y libpam-u2f pamu2fcfg yubikey-manager appstream libdbus-1-dev
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -26,9 +26,35 @@ jobs:
       - name: Cargo Check
         run: cargo check --verbose
 
+      - name: Cargo Test
+        run: cargo test --verbose
+
       - name: Cargo Build (Release)
         run: cargo build --release --verbose
 
       - name: Validate AppStream Metadata
         run: |
           appstreamcli validate packaging/flatpak/io.github.mzia.PulsarKey.metainfo.xml || true
+
+  test-macos:
+    name: Test & Build (macOS Darwin)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo Check
+        run: cargo check --verbose
+
+      - name: Cargo Test
+        run: cargo test --verbose
+
+      - name: Test macOS App Bundle, DMG, and PKG Packaging
+        run: |
+          chmod +x packaging/macos/build_mac.sh
+          ./packaging/macos/build_mac.sh
+          ls -lh dist/
