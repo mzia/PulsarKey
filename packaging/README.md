@@ -12,14 +12,14 @@ This directory contains production packaging assets for **PulsarKey** across bot
 Pop!_OS COSMIC natively supports 1-click `.deb` package installation through the COSMIC Store and Eddy.
 
 ### Ready-Built Package:
-`dist/pulsarkey_1.2.0_amd64.deb`
+`dist/pulsarkey_1.3.0_amd64.deb`
 
 ### Installation Methods:
 - **COSMIC Store / Eddy**:
-  Right-click `pulsarkey_1.2.0_amd64.deb` in COSMIC Files -> **Open With -> Eddy / COSMIC Store** -> Click **Install**.
+  Right-click `pulsarkey_1.3.0_amd64.deb` in COSMIC Files -> **Open With -> Eddy / COSMIC Store** -> Click **Install**.
 - **CLI / APT**:
   ```bash
-  sudo apt install ./dist/pulsarkey_1.2.0_amd64.deb
+  sudo apt install ./dist/pulsarkey_1.3.0_amd64.deb
   ```
 
 ### What the `.deb` package installs:

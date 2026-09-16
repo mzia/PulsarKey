@@ -14,8 +14,11 @@ const PAM_POLKIT: &str = "/etc/pam.d/polkit-1";
 const TEMPLATE_POLKIT: &str = "/usr/lib/pam.d/polkit-1";
 
 mod applet;
+mod audit;
+mod backup;
 mod bio;
 mod config;
+mod profiles;
 mod ssh_setup;
 
 #[derive(Parser)]
@@ -78,6 +81,24 @@ enum Commands {
     /// Manage FIDO2 hardware PIN code
     Pin {
         /// Action: "change", "set", "verify", or "status"
+        #[arg(value_name = "ACTION")]
+        action: Option<String>,
+    },
+    /// Manage security strictness profiles (convenience, fortress, lockdown)
+    Profile {
+        /// Profile name: "convenience", "fortress", "lockdown", or "status"
+        #[arg(value_name = "PROFILE")]
+        action: Option<String>,
+    },
+    /// View authentication audit journal (recent pulses)
+    Audit {
+        /// Clear the audit journal log
+        #[arg(long)]
+        clear: bool,
+    },
+    /// Manage secondary / backup security keys (pairing, testing, recovery)
+    Backup {
+        /// Action: "status", "pair", or "test"
         #[arg(value_name = "ACTION")]
         action: Option<String>,
     },
@@ -166,6 +187,15 @@ fn main() {
         }
         Commands::Pin { action } => {
             bio::handle_pin_cli(action);
+        }
+        Commands::Profile { action } => {
+            profiles::handle_profile_cli(action);
+        }
+        Commands::Audit { clear } => {
+            audit::print_audit_log(clear);
+        }
+        Commands::Backup { action } => {
+            backup::handle_backup_cli(action);
         }
     }
 }
@@ -639,6 +669,10 @@ fn run_status() {
     // Check PAM polkit-1
     check_pam_status("polkit-1 (GUI)", PAM_POLKIT);
 
+    // Check Security Profile
+    let current_profile = profiles::get_current_profile();
+    println!("Security Profile:        {}", current_profile.display_name().bold().green());
+
     // Check Auto-Lock
     let cfg = config::load_config();
     println!(
@@ -654,6 +688,18 @@ fn run_status() {
     // Check Biometric Engine
     let bio_status = bio::check_bio_status();
     println!("Biometric Engine:        {}", bio_status);
+
+    // Check Backup Redundancy
+    let username = std::env::var("USER").unwrap_or_else(|_| "mzia".to_string());
+    let enrolled_keys = backup::get_enrolled_keys(&username);
+    println!(
+        "Key Redundancy:          {}",
+        if enrolled_keys.len() > 1 {
+            format!("Protected ({} keys enrolled)", enrolled_keys.len()).green()
+        } else {
+            "Single key enrolled (No backup)".yellow()
+        }
+    );
 
     // Check connected YubiKey
     println!("\nHardware Detection:");

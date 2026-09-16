@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 ARCH="amd64"
 PKG_DIR="packaging/deb/pulsarkey_${VERSION}_${ARCH}"
 
@@ -126,6 +126,11 @@ cat << 'EOF' > "${PKG_DIR}/usr/share/metainfo/io.github.mzia.PulsarKey.metainfo.
     <binary>cosmic-fido2</binary>
   </provides>
   <releases>
+    <release version="1.3.0" date="2026-09-15">
+      <description>
+        <p>Introduces Security Strictness Profiles (Convenience, Fortress 2FA, Lockdown), Authentication Audit Journal ('Recent Pulses'), and Backup Key Pairing &amp; Recovery Assistant.</p>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-09-14">
       <description>
         <p>Introduces Native On-Key Biometric &amp; Fingerprint Manager (pulsarkey bio &amp; pulsarkey pin), instant sysfs hardware polling with zero-contention applet engine, and COSMIC panel biometric launcher.</p>
