@@ -1,11 +1,7 @@
 use colored::*;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
-const PAM_SUDO: &str = "/etc/pam.d/sudo";
-const PAM_GREETER: &str = "/etc/pam.d/cosmic-greeter";
-const PAM_POLKIT: &str = "/etc/pam.d/polkit-1";
 const TEMPLATE_POLKIT: &str = "/usr/lib/pam.d/polkit-1";
 const MAPPING_FILE: &str = "/etc/yubico/u2f_keys";
 
@@ -93,19 +89,20 @@ pub fn apply_profile(profile: SecurityProfile) -> Result<(), String> {
     };
 
     // 3. Inject into sudo
-    update_pam_file(PAM_SUDO, sudo_line, profile == SecurityProfile::Fortress)?;
+    update_pam_file(crate::platform::PAM_PATHS.sudo, sudo_line, profile == SecurityProfile::Fortress)?;
 
-    // 4. Inject into cosmic-greeter
-    if Path::new(PAM_GREETER).exists() {
-        update_pam_file(PAM_GREETER, greeter_line, profile == SecurityProfile::Fortress)?;
+    // 4. Inject into cosmic-greeter / screensaver
+    if Path::new(crate::platform::PAM_PATHS.greeter_or_screensaver).exists() {
+        update_pam_file(crate::platform::PAM_PATHS.greeter_or_screensaver, greeter_line, profile == SecurityProfile::Fortress)?;
     }
 
-    // 5. Inject into polkit-1
-    if !Path::new(PAM_POLKIT).exists() && Path::new(TEMPLATE_POLKIT).exists() {
-        let _ = fs::copy(TEMPLATE_POLKIT, PAM_POLKIT);
+    // 5. Inject into polkit-1 / authorization
+    #[cfg(target_os = "linux")]
+    if !Path::new(crate::platform::PAM_PATHS.elevation_service).exists() && Path::new(TEMPLATE_POLKIT).exists() {
+        let _ = fs::copy(TEMPLATE_POLKIT, crate::platform::PAM_PATHS.elevation_service);
     }
-    if Path::new(PAM_POLKIT).exists() {
-        update_pam_file(PAM_POLKIT, polkit_line, profile == SecurityProfile::Fortress)?;
+    if Path::new(crate::platform::PAM_PATHS.elevation_service).exists() {
+        update_pam_file(crate::platform::PAM_PATHS.elevation_service, polkit_line, profile == SecurityProfile::Fortress)?;
     }
 
     // 6. Persist to configuration
@@ -122,14 +119,11 @@ pub fn apply_profile(profile: SecurityProfile) -> Result<(), String> {
     );
 
     // 8. Desktop Notification
-    let _ = Command::new("notify-send")
-        .args([
-            "-i",
-            "security-high-symbolic",
-            "PulsarKey Profile",
-            &format!("Active Security Profile: {}", profile.display_name()),
-        ])
-        .status();
+    crate::platform::send_desktop_notification(
+        "PulsarKey Profile",
+        &format!("Active Security Profile: {}", profile.display_name()),
+        false,
+    );
 
     Ok(())
 }

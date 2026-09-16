@@ -1,14 +1,12 @@
+#[cfg(target_os = "linux")]
 use ksni::menu::*;
+#[cfg(target_os = "linux")]
 use ksni::{Category, MenuItem, ToolTip, Tray, TrayMethods};
 use std::fs;
-use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
 const MAPPING_FILE: &str = "/etc/yubico/u2f_keys";
-const PAM_SUDO: &str = "/etc/pam.d/sudo";
-const PAM_GREETER: &str = "/etc/pam.d/cosmic-greeter";
-const PAM_POLKIT: &str = "/etc/pam.d/polkit-1";
 
 #[derive(Clone, Debug)]
 pub struct YubiKeyApplet {
@@ -52,42 +50,20 @@ impl YubiKeyApplet {
         let _ = crate::config::save_config(&cfg);
 
         let status_str = if self.autolock_enabled { "Enabled" } else { "Disabled" };
-        let _ = Command::new("notify-send")
-            .args([
-                "-i",
-                "auth-fingerprint-symbolic",
-                "PulsarKey Sentinel",
-                &format!("Auto-Lock on removal: {}", status_str),
-            ])
-            .status();
+        crate::platform::send_desktop_notification(
+            "PulsarKey Sentinel",
+            &format!("Auto-Lock on removal: {}", status_str),
+            false,
+        );
     }
 
     pub fn refresh(&mut self) {
-        // 1. Instant sysfs hardware detection (zero contention, zero Python overhead)
-        let mut yubikey_sysfs_path: Option<PathBuf> = None;
-        if let Ok(entries) = fs::read_dir("/sys/bus/usb/devices") {
-            for entry in entries.flatten() {
-                let p = entry.path();
-                if let Ok(vendor) = fs::read_to_string(p.join("idVendor")) {
-                    if vendor.trim() == "1050" {
-                        yubikey_sysfs_path = Some(p);
-                        break;
-                    }
-                }
-            }
-        }
-
-        let new_connected = yubikey_sysfs_path.is_some();
+        // 1. Cross-platform hardware detection
+        let (new_connected, hw_product_name) = crate::platform::check_yubikey_usb_connected();
 
         if new_connected {
             if !self.was_connected || self.device_name == "No YubiKey Detected" {
-                // Read product name from sysfs first
-                let product_name = yubikey_sysfs_path
-                    .as_ref()
-                    .and_then(|p| fs::read_to_string(p.join("product")).ok())
-                    .map(|s| s.trim().to_string());
-
-                // Enrich with ykman info once upon insertion
+                // Enrich with ykman info once upon insertion if available
                 let yk_name = Command::new("ykman").arg("info").output().ok().and_then(|out| {
                     if out.status.success() {
                         let info = String::from_utf8_lossy(&out.stdout);
@@ -99,9 +75,7 @@ impl YubiKeyApplet {
                     }
                 });
 
-                self.device_name = yk_name
-                    .or(product_name)
-                    .unwrap_or_else(|| "YubiKey Detected".to_string());
+                self.device_name = yk_name.unwrap_or(hw_product_name);
             }
         } else {
             self.device_name = "No YubiKey Detected".to_string();
@@ -126,24 +100,19 @@ impl YubiKeyApplet {
 
         // Feature 1: Presence Sentinel - Auto-Lock on key removal
         if self.was_connected && !new_connected && self.autolock_enabled {
-            println!("🚨 YubiKey removed with Auto-Lock enabled! Locking COSMIC session...");
+            println!("🚨 YubiKey removed with Auto-Lock enabled! Locking session...");
             crate::audit::log_event(
                 "SENTINEL",
                 "Auto-Lock Triggered",
                 "Locked",
                 "Desktop locked on token removal",
             );
-            let _ = Command::new("notify-send")
-                .args([
-                    "-u",
-                    "critical",
-                    "-i",
-                    "auth-fingerprint-symbolic",
-                    "PulsarKey Sentinel",
-                    "YubiKey removed — COSMIC desktop locked.",
-                ])
-                .status();
-            let _ = Command::new("loginctl").arg("lock-session").status();
+            crate::platform::send_desktop_notification(
+                "PulsarKey Sentinel",
+                &format!("YubiKey removed — {} desktop locked.", crate::platform::get_os_display_name()),
+                true,
+            );
+            let _ = crate::platform::lock_session();
         }
         self.was_connected = new_connected;
         self.is_connected = new_connected;
@@ -162,10 +131,10 @@ impl YubiKeyApplet {
         self.autolock_enabled = cfg.autolock;
         self.profile_name = cfg.profile;
 
-        // 4. PAM status checks (Lockscreen, Sudo, Polkit)
-        self.sudo_status = check_pam(PAM_SUDO);
-        self.lockscreen_status = check_pam(PAM_GREETER);
-        self.polkit_status = check_pam(PAM_POLKIT);
+        // 4. PAM status checks (Lockscreen, Sudo, Polkit/Authorization)
+        self.sudo_status = check_pam(crate::platform::PAM_PATHS.sudo);
+        self.lockscreen_status = check_pam(crate::platform::PAM_PATHS.greeter_or_screensaver);
+        self.polkit_status = check_pam(crate::platform::PAM_PATHS.elevation_service);
     }
 }
 
@@ -185,6 +154,7 @@ fn check_pam(path: &str) -> String {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl Tray for YubiKeyApplet {
     const MENU_ON_ACTIVATE: bool = true;
 
@@ -487,6 +457,7 @@ impl Tray for YubiKeyApplet {
     }
 }
 
+#[cfg(target_os = "linux")]
 pub async fn run_applet() {
     let applet = YubiKeyApplet::new();
     let handle = applet.spawn().await.expect("Failed to spawn COSMIC status tray applet");
@@ -499,5 +470,18 @@ pub async fn run_applet() {
                 tray.refresh();
             })
             .await;
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub async fn run_applet() {
+    println!("🌌 Launching PulsarKey Hardware Sentinel Daemon for macOS...");
+    let mut applet = YubiKeyApplet::new();
+    println!("🛡️ Presence Sentinel Auto-Lock: {}", if applet.autolock_enabled { "Enabled" } else { "Disabled" });
+    println!("Monitoring YubiKey insertions & removals in background...");
+
+    loop {
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        applet.refresh();
     }
 }

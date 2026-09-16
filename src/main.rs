@@ -1,16 +1,13 @@
 use clap::{Parser, Subcommand};
 use colored::*;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const MAPPING_DIR: &str = "/etc/yubico";
 const MAPPING_FILE: &str = "/etc/yubico/u2f_keys";
 const UDEV_RULE_FILE: &str = "/etc/udev/rules.d/70-yubikey-cosmic.rules";
-const PAM_SUDO: &str = "/etc/pam.d/sudo";
-const PAM_GREETER: &str = "/etc/pam.d/cosmic-greeter";
-const PAM_POLKIT: &str = "/etc/pam.d/polkit-1";
 const TEMPLATE_POLKIT: &str = "/usr/lib/pam.d/polkit-1";
 
 use pulsarkey::*;
@@ -20,11 +17,15 @@ use pulsarkey::*;
     name = "pulsarkey",
     author = "M. Zia <mzia@pop-os.local>",
     version,
-    about = "Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC"
+    about = "Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC & macOS"
 )]
 struct Cli {
+    /// Open the graphical Settings control panel view
+    #[arg(short = 'g', long)]
+    gui: bool,
+
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -115,60 +116,149 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
 
+    // Fast-path: direct -g / --gui flag
+    if cli.gui {
+        if let Err(e) = gui::run_gui() {
+            eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
     match cli.command {
-        Commands::Setup { reinstall_packages } => {
+        Some(Commands::Setup { reinstall_packages }) => {
             ensure_root("setup");
             run_setup(reinstall_packages);
         }
-        Commands::Uninstall { purge_packages } => {
+        Some(Commands::Uninstall { purge_packages }) => {
             ensure_root("uninstall");
             run_uninstall(purge_packages);
         }
-        Commands::Status => {
+        Some(Commands::Status) => {
             run_status();
         }
-        Commands::Applet { install_autostart } => {
+        Some(Commands::Applet { install_autostart }) => {
             if install_autostart {
                 install_applet_autostart();
             }
-            println!("🌌 Launching PulsarKey COSMIC Panel Applet...");
+            println!("🌌 Launching PulsarKey Security Applet...");
             tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(applet::run_applet());
         }
-        Commands::Autolock { action } => {
+        Some(Commands::Autolock { action }) => {
             handle_autolock(action);
         }
-        Commands::SshSetup {
+        Some(Commands::SshSetup {
             no_resident,
             no_git_sign,
             key_path,
-        } => {
+        }) => {
             ssh_setup::run_ssh_setup(no_resident, no_git_sign, key_path);
         }
-        Commands::Bio { action } => {
+        Some(Commands::Bio { action }) => {
             bio::handle_bio_cli(action);
         }
-        Commands::Pin { action } => {
+        Some(Commands::Pin { action }) => {
             bio::handle_pin_cli(action);
         }
-        Commands::Profile { action } => {
+        Some(Commands::Profile { action }) => {
             profiles::handle_profile_cli(action);
         }
-        Commands::Audit { clear } => {
+        Some(Commands::Audit { clear }) => {
             audit::print_audit_log(clear);
         }
-        Commands::Backup { action } => {
+        Some(Commands::Backup { action }) => {
             backup::handle_backup_cli(action);
         }
-        Commands::Gui | Commands::Settings => {
+        Some(Commands::Gui) | Some(Commands::Settings) => {
             if let Err(e) = gui::run_gui() {
                 eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
                 std::process::exit(1);
             }
         }
-        Commands::Rescue { action, arg } => {
+        Some(Commands::Rescue { action, arg }) => {
             rescue::handle_rescue_cli(action, arg);
+        }
+        None => {
+            if std::io::stdin().is_terminal() || std::io::stdout().is_terminal() {
+                run_interactive_selection();
+            } else {
+                if let Err(e) = gui::run_gui() {
+                    eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+}
+
+/// Interactive view selection when pulsarkey is run without arguments in a terminal
+fn run_interactive_selection() {
+    println!("{}", "==================================================".cyan());
+    println!(
+        "{} {}",
+        "🌌 PulsarKey — Hardware Security Suite".bold().cyan(),
+        format!("({})", platform::get_os_display_name()).dimmed()
+    );
+    println!("{}", "==================================================".cyan());
+    println!("Please select a view or action:");
+    println!("  {}  📊 View Security Status Dashboard", "[1]".bold().green());
+    println!("  {}  ⚙️  Open Settings Control Panel (GUI Window)", "[2]".bold().green());
+    println!("  {}  🛡️  Security Strictness Profiles", "[3]".bold().green());
+    println!("  {}  🧬 On-Key Biometrics & PIN Manager", "[4]".bold().green());
+    println!("  {}  👯 Backup Key Assistant", "[5]".bold().green());
+    println!("  {}  🛟 Emergency Recovery Kit & Runbook", "[6]".bold().green());
+    println!("  {}  🔑 Hardware SSH & Git Signing Setup", "[7]".bold().green());
+    println!("  {}  🛡️  Presence Sentinel Auto-Lock", "[8]".bold().green());
+    println!("  {}  🚪 Exit", "[q]".bold().yellow());
+    println!("{}", "==================================================".cyan());
+    print!("Selection [1-8, or 2 for GUI Settings]: ");
+    let _ = io::stdout().flush();
+
+    let mut input = String::new();
+    if io::stdin().read_line(&mut input).is_ok() {
+        match input.trim().to_lowercase().as_str() {
+            "1" | "status" | "s" => {
+                println!();
+                run_status();
+            }
+            "2" | "gui" | "g" | "settings" | "" => {
+                println!("\nLaunching PulsarKey Settings GUI view...");
+                if let Err(e) = gui::run_gui() {
+                    eprintln!("Failed to launch Settings GUI: {}", e);
+                }
+            }
+            "3" | "profile" | "p" => {
+                println!();
+                profiles::handle_profile_cli(None);
+            }
+            "4" | "bio" | "b" => {
+                println!();
+                bio::handle_bio_cli(None);
+            }
+            "5" | "backup" => {
+                println!();
+                backup::handle_backup_cli(None);
+            }
+            "6" | "rescue" | "r" => {
+                println!();
+                rescue::handle_rescue_cli(None, None);
+            }
+            "7" | "ssh" => {
+                println!();
+                ssh_setup::run_ssh_setup(false, false, None);
+            }
+            "8" | "autolock" => {
+                println!();
+                handle_autolock(None);
+            }
+            "q" | "quit" | "exit" => {
+                println!("Goodbye!");
+            }
+            other => {
+                println!("Unknown option '{}'. Exiting.", other);
+            }
         }
     }
 }
@@ -396,17 +486,21 @@ fn run_setup(reinstall: bool) {
         MAPPING_FILE
     );
 
-    update_pam_file(PAM_SUDO, &sudo_pam_line);
-    update_pam_file(PAM_GREETER, &greeter_pam_line);
-    update_pam_file(PAM_POLKIT, &polkit_pam_line);
+    update_pam_file(platform::PAM_PATHS.sudo, &sudo_pam_line);
+    if Path::new(platform::PAM_PATHS.greeter_or_screensaver).exists() {
+        update_pam_file(platform::PAM_PATHS.greeter_or_screensaver, &greeter_pam_line);
+    }
+    if Path::new(platform::PAM_PATHS.elevation_service).exists() {
+        update_pam_file(platform::PAM_PATHS.elevation_service, &polkit_pam_line);
+    }
 
     println!("\n{}", "==================================================".green());
     println!("{}", "🎉 Configuration finished successfully!".bold().green());
     println!("{}", "==================================================".green());
     println!("Verification Steps:");
     println!("  1. Sudo CLI:             {}", "sudo -k && sudo whoami".bold().cyan());
-    println!("  2. Polkit GUI dialogs:   {}", "pkexec whoami".bold().cyan());
-    println!("  3. COSMIC Lockscreen:    Lock with {} and press Space then Enter.", "Super + L".bold().cyan());
+    println!("  2. Polkit/Auth dialogs:  {}", "pkexec whoami".bold().cyan());
+    println!("  3. Lockscreen:           Lock desktop and press Space then Enter.");
 }
 
 fn enroll_key(username_opt: Option<&str>, user_verification: bool) -> Result<String, String> {
@@ -444,8 +538,8 @@ fn update_pam_file(path: &str, line_to_insert: &str) {
     let mut clean_lines: Vec<String> = Vec::new();
 
     if !p.exists() {
-        // If polkit-1 doesn't exist in /etc/pam.d, initialize it from system template in /usr/lib/pam.d
-        if path == PAM_POLKIT && Path::new(TEMPLATE_POLKIT).exists() {
+        // If elevation service doesn't exist in /etc/pam.d, initialize it from system template in /usr/lib/pam.d (Linux)
+        if path == platform::PAM_PATHS.elevation_service && Path::new(TEMPLATE_POLKIT).exists() {
             println!("Initializing {} from system template...", path.cyan());
             if let Ok(f) = File::open(TEMPLATE_POLKIT) {
                 for l in BufReader::new(f).lines().flatten() {
@@ -504,33 +598,56 @@ fn run_uninstall(purge: bool) {
     println!("{}", "🔄 Reverting FIDO2 YubiKey configuration...".bold().yellow());
     println!("{}", "==================================================".yellow());
 
-    // 1. Remove PAM lines from Sudo, Greeter, Polkit
-    for pam_file in [PAM_SUDO, PAM_GREETER] {
+    // 1. Remove PAM lines from Sudo, Greeter/Screensaver
+    for pam_file in [platform::PAM_PATHS.sudo, platform::PAM_PATHS.greeter_or_screensaver] {
         if Path::new(pam_file).exists() {
             println!("Cleaning up {}...", pam_file);
-            let file = File::open(pam_file).unwrap();
-            let reader = BufReader::new(file);
-            let mut clean_lines: Vec<String> = Vec::new();
+            if let Ok(file) = File::open(pam_file) {
+                let reader = BufReader::new(file);
+                let mut clean_lines: Vec<String> = Vec::new();
 
-            for line in reader.lines().flatten() {
-                if !line.contains("pam_u2f.so") {
-                    clean_lines.push(line);
+                for line in reader.lines().flatten() {
+                    if !line.contains("pam_u2f.so") {
+                        clean_lines.push(line);
+                    }
+                }
+
+                if let Ok(mut out) = OpenOptions::new().write(true).truncate(true).open(pam_file) {
+                    for l in clean_lines {
+                        let _ = writeln!(out, "{}", l);
+                    }
+                    println!("{} Removed pam_u2f from {}", "✅".green(), pam_file);
                 }
             }
-
-            let mut out = OpenOptions::new().write(true).truncate(true).open(pam_file).unwrap();
-            for l in clean_lines {
-                let _ = writeln!(out, "{}", l);
-            }
-            println!("{} Removed pam_u2f from {}", "✅".green(), pam_file);
         }
     }
 
-    // Clean up /etc/pam.d/polkit-1
-    if Path::new(PAM_POLKIT).exists() {
-        println!("Restoring system default for {}...", PAM_POLKIT);
-        let _ = fs::remove_file(PAM_POLKIT);
-        println!("{} Removed override {}", "✅".green(), PAM_POLKIT);
+    // Clean up elevation service
+    if Path::new(platform::PAM_PATHS.elevation_service).exists() {
+        #[cfg(target_os = "linux")]
+        {
+            println!("Restoring system default for {}...", platform::PAM_PATHS.elevation_service);
+            let _ = fs::remove_file(platform::PAM_PATHS.elevation_service);
+            println!("{} Removed override {}", "✅".green(), platform::PAM_PATHS.elevation_service);
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            if let Ok(file) = File::open(platform::PAM_PATHS.elevation_service) {
+                let reader = BufReader::new(file);
+                let mut clean_lines: Vec<String> = Vec::new();
+                for line in reader.lines().flatten() {
+                    if !line.contains("pam_u2f.so") {
+                        clean_lines.push(line);
+                    }
+                }
+                if let Ok(mut out) = OpenOptions::new().write(true).truncate(true).open(platform::PAM_PATHS.elevation_service) {
+                    for l in clean_lines {
+                        let _ = writeln!(out, "{}", l);
+                    }
+                    println!("{} Removed pam_u2f from {}", "✅".green(), platform::PAM_PATHS.elevation_service);
+                }
+            }
+        }
     }
 
     // 2. Remove udev rule
@@ -548,32 +665,30 @@ fn run_uninstall(purge: bool) {
     }
     if Path::new(MAPPING_DIR).exists() {
         let _ = fs::remove_dir(MAPPING_DIR);
+        println!("{} Deleted {}", "✅".green(), MAPPING_DIR);
     }
 
-    // 4. User mapping cleanup
+    // 4. Remove user mapping if present
     let user_key_file = user_home.join(".config/Yubico/u2f_keys");
     if user_key_file.exists() {
-        print!("❓ Remove user-level mapping ({})? [y/N]: ", user_key_file.display());
-        io::stdout().flush().unwrap();
-        let mut resp = String::new();
-        io::stdin().read_line(&mut resp).unwrap();
-        if resp.trim().eq_ignore_ascii_case("y") {
-            let _ = fs::remove_file(&user_key_file);
-            println!("{} Removed user mapping.", "✅".green());
+        let _ = fs::remove_file(&user_key_file);
+        println!("{} Deleted {}", "✅".green(), user_key_file.display());
+    }
+
+    // 5. Purge Packages if requested
+    if purge {
+        #[cfg(target_os = "linux")]
+        {
+            println!("\nPurging libpam-u2f and pamu2fcfg via apt...");
+            let _ = Command::new("apt")
+                .args(["purge", "-y", "libpam-u2f", "pamu2fcfg"])
+                .status();
         }
     }
 
-    // 5. Optional Package Purge
-    if purge {
-        println!("Purging libpam-u2f, pamu2fcfg, and yubikey-manager...");
-        let _ = Command::new("apt")
-            .args(["purge", "-y", "libpam-u2f", "pamu2fcfg", "yubikey-manager"])
-            .status();
-        let _ = Command::new("apt").args(["autoremove", "--purge", "-y"]).status();
-        println!("{} Packages purged.", "✅".green());
-    }
-
-    println!("\n{}", "🎉 Rollback complete! Password-only authentication restored.".bold().green());
+    println!("\n{}", "==================================================".green());
+    println!("{}", "🎉 PulsarKey successfully uninstalled.".bold().green());
+    println!("{}", "==================================================".green());
 }
 
 // ---------------------------------------------------------
@@ -581,22 +696,34 @@ fn run_uninstall(purge: bool) {
 // ---------------------------------------------------------
 fn run_status() {
     println!("{}", "==================================================".cyan());
-    println!("{}", " 🔍 PulsarKey Security Status (Pop!_OS COSMIC)".bold().cyan());
+    println!("{}", format!(" 🔍 PulsarKey Security Status ({})", platform::get_os_display_name()).bold().cyan());
     println!("{}", "==================================================".cyan());
 
+    // Check hardware
+    let (is_connected, hw_name) = platform::check_yubikey_usb_connected();
+    println!(
+        "Security Hardware:       {}",
+        if is_connected { hw_name.green().bold() } else { "None detected".yellow() }
+    );
+
     // Check packages
-    let has_pamu2fcfg = Path::new("/usr/bin/pamu2fcfg").exists();
+    let has_pamu2fcfg = Path::new("/usr/bin/pamu2fcfg").exists()
+        || Path::new("/opt/homebrew/bin/pamu2fcfg").exists()
+        || Path::new("/usr/local/bin/pamu2fcfg").exists();
     println!(
         "pamu2fcfg tool:          {}",
         if has_pamu2fcfg { "Installed".green() } else { "Missing".red() }
     );
 
-    // Check udev rule
-    let has_udev = Path::new(UDEV_RULE_FILE).exists();
-    println!(
-        "COSMIC udev rules:       {}",
-        if has_udev { "Configured".green() } else { "Not found".yellow() }
-    );
+    // Check udev rule (Linux)
+    #[cfg(target_os = "linux")]
+    {
+        let has_udev = Path::new(UDEV_RULE_FILE).exists();
+        println!(
+            "COSMIC udev rules:       {}",
+            if has_udev { "Configured".green() } else { "Not found".yellow() }
+        );
+    }
 
     // Check mapping file
     let has_mapping = Path::new(MAPPING_FILE).exists();
@@ -618,13 +745,13 @@ fn run_status() {
     }
 
     // Check PAM sudo
-    check_pam_status("sudo", PAM_SUDO);
+    check_pam_status("sudo", platform::PAM_PATHS.sudo);
 
-    // Check PAM cosmic-greeter
-    check_pam_status("cosmic-greeter", PAM_GREETER);
+    // Check PAM greeter / screensaver
+    check_pam_status(platform::PAM_PATHS.greeter_label, platform::PAM_PATHS.greeter_or_screensaver);
 
-    // Check PAM polkit-1
-    check_pam_status("polkit-1 (GUI)", PAM_POLKIT);
+    // Check PAM elevation service (polkit or authorization)
+    check_pam_status(platform::PAM_PATHS.elevation_label, platform::PAM_PATHS.elevation_service);
 
     // Check Security Profile
     let current_profile = profiles::get_current_profile();

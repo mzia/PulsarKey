@@ -28,7 +28,9 @@ path = "src/gui_main.rs"
 clap = { version = "4.6.6", features = ["derive"] }
 colored = "3.1.1"
 iced = "0.14.0"
-ksni = "0.3.6"
 libc = "0.2.189"
 sha2 = "0.11.0"
 tokio = { version = "1.53.1", features = ["full"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ksni = "0.3.6"
