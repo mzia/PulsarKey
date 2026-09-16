@@ -7,6 +7,7 @@ pub mod backup;
 pub mod bio;
 pub mod config;
 pub mod gui;
+pub mod platform;
 pub mod profiles;
 pub mod rescue;
 pub mod ssh_setup;

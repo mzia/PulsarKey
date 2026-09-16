@@ -2,12 +2,12 @@
 
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Pop!__OS%20COSMIC-teal.svg?style=flat-square)](https://system76.com/cosmic)
-[![Packaging](https://img.shields.io/badge/Packaging-Debian%20.deb%20%7C%20Flathub-purple.svg?style=flat-square)](packaging/)
+[![Platform](https://img.shields.io/badge/Platform-Pop!__OS%20COSMIC%20%7C%20macOS-teal.svg?style=flat-square)](https://system76.com/cosmic)
+[![Packaging](https://img.shields.io/badge/Packaging-Debian%20.deb%20%7C%20macOS%20.dmg%20%7C%20Homebrew-purple.svg?style=flat-square)](packaging/)
 [![Release](https://img.shields.io/github/v/release/mzia/PulsarKey?style=flat-square)](https://github.com/mzia/PulsarKey/releases)
 
-> **Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC**  
-> *Seamless, zero-lag YubiKey Bio unlocking, passwordless sudo, and real-time top bar panel monitoring.*
+> **Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC & macOS**  
+> *Seamless, zero-lag YubiKey Bio unlocking, passwordless sudo, Sentinel presence auto-lock, and native GUI settings.*
 
 ---
 
@@ -575,6 +575,29 @@ sudo pulsarkey uninstall --purge-packages
 
 ---
 
+## 🍎 macOS Installation & Packaging
+
+PulsarKey supports **macOS (Monterey 12+)** as a native cross-platform build sharing a single Rust core with Pop!_OS:
+
+### 1. Prerequisites (Homebrew)
+```bash
+brew install pam-u2f ykman
+```
+
+### 2. Building `PulsarKey.app`, `.dmg`, and `.pkg`
+```bash
+./packaging/macos/build_mac.sh
+```
+
+### 3. Installing via Homebrew Cask
+```bash
+brew install --cask packaging/macos/homebrew/pulsarkey.rb
+```
+
+See [packaging/macos/README.md](packaging/macos/README.md) for full macOS PAM targets (`/etc/pam.d/screensaver`, `/etc/pam.d/authorization`), Apple Metal GPU acceleration details, and Sentinel background daemon instructions.
+
+---
+
 ## 📁 Repository Structure
 
 ```
@@ -585,8 +608,10 @@ PulsarKey/
 │   ├── main.rs                                # CLI entry point (setup, uninstall, status, rescue, bio)
 │   ├── gui_main.rs                            # Dedicated binary entry point for pulsarkey-settings GUI
 │   ├── gui.rs                                 # COSMIC native Iced GUI desktop control panel
+│   ├── platform/                              # Cross-platform abstractions (Linux / macOS PAM, locking, notifications)
+│   │   └── mod.rs
 │   ├── rescue.rs                              # Emergency paper recovery tokens & offline rescue runbook
-│   ├── applet.rs                              # COSMIC StatusNotifierItem panel applet
+│   ├── applet.rs                              # StatusNotifierItem panel applet & macOS Sentinel daemon
 │   ├── audit.rs                               # Authentication Audit Journal ('Recent Pulses')
 │   ├── backup.rs                              # Backup Key pairing & redundancy assistant
 │   ├── bio.rs                                 # On-key biometric & FIDO2 PIN manager
@@ -595,6 +620,11 @@ PulsarKey/
 │   └── ssh_setup.rs                           # Hardware SSH & Git commit signing wizard
 ├── packaging/
 │   ├── build_deb.sh                           # Automated Debian .deb builder
+│   ├── macos/                                 # macOS packaging (PulsarKey.app, DMG, PKG, Homebrew Cask)
+│   │   ├── Info.plist                         # macOS App bundle property list
+│   │   ├── build_mac.sh                       # macOS App bundle, DMG, and PKG builder
+│   │   ├── homebrew/pulsarkey.rb              # Homebrew Cask formula definition
+│   │   └── README.md                          # macOS deployment guide
 │   ├── README.md                              # Packaging guide
 │   ├── cosmic-fido2.svg                       # 512x512 vector icon
 │   └── flatpak/                               # Flathub / COSMIC Flatpak manifest & AppStream XML

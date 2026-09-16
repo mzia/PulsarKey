@@ -104,9 +104,8 @@ impl SettingsApp {
                 Task::none()
             }
             Message::SwitchProfile(mode) => {
-                let status = Command::new("pkexec")
-                    .args(["pulsarkey", "profile", &mode])
-                    .status();
+                let cmd = format!("pulsarkey profile {}", mode);
+                let status = crate::platform::run_elevated(&cmd);
 
                 match status {
                     Ok(s) if s.success() => {
@@ -155,9 +154,7 @@ impl SettingsApp {
                 Task::none()
             }
             Message::LaunchTerminal(cmd) => {
-                let _ = Command::new("cosmic-term")
-                    .args(["-e", "bash", "-c", &cmd])
-                    .spawn();
+                crate::platform::launch_in_terminal(&cmd);
                 Task::none()
             }
         }
@@ -192,7 +189,7 @@ impl SettingsApp {
                 .width(Length::Fill)
                 .on_press(Message::SelectTab(Tab::Rescue)),
             Space::new().height(Length::Fill),
-            text("v1.4.0 Pop!_OS COSMIC").size(12),
+            text(format!("v1.4.0 {}", crate::platform::get_os_display_name())).size(12),
         ]
         .spacing(8)
         .width(180)
