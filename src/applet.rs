@@ -3,6 +3,8 @@ use ksni::menu::*;
 #[cfg(target_os = "linux")]
 use ksni::{Category, MenuItem, ToolTip, Tray, TrayMethods};
 use std::fs;
+use std::os::unix::io::AsRawFd;
+use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
@@ -457,8 +459,40 @@ impl Tray for YubiKeyApplet {
     }
 }
 
+/// Acquires an exclusive advisory lock on the runtime lockfile.
+/// Returns Some(File) if lock was acquired, or None if another instance is already running.
+fn acquire_single_instance_lock() -> Option<fs::File> {
+    let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
+        .unwrap_or_else(|_| format!("/tmp/user-{}", unsafe { libc::getuid() }));
+    let _ = fs::create_dir_all(&runtime_dir);
+    let lock_path = PathBuf::from(runtime_dir).join("pulsarkey-applet.lock");
+
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .ok()?;
+
+    let res = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if res != 0 {
+        return None;
+    }
+
+    Some(file)
+}
+
 #[cfg(target_os = "linux")]
 pub async fn run_applet() {
+    let _lock = match acquire_single_instance_lock() {
+        Some(file) => file,
+        None => {
+            println!("ℹ️ PulsarKey applet is already running on this session. Exiting duplicate instance.");
+            return;
+        }
+    };
+
     let applet = YubiKeyApplet::new();
     let handle = applet.spawn().await.expect("Failed to spawn COSMIC status tray applet");
 
@@ -475,6 +509,14 @@ pub async fn run_applet() {
 
 #[cfg(not(target_os = "linux"))]
 pub async fn run_applet() {
+    let _lock = match acquire_single_instance_lock() {
+        Some(file) => file,
+        None => {
+            println!("ℹ️ PulsarKey Sentinel daemon is already running on this session. Exiting duplicate instance.");
+            return;
+        }
+    };
+
     println!("🌌 Launching PulsarKey Hardware Sentinel Daemon for macOS...");
     let mut applet = YubiKeyApplet::new();
     println!("🛡️ Presence Sentinel Auto-Lock: {}", if applet.autolock_enabled { "Enabled" } else { "Disabled" });
@@ -483,5 +525,24 @@ pub async fn run_applet() {
     loop {
         tokio::time::sleep(Duration::from_secs(2)).await;
         applet.refresh();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_single_instance_lock() {
+        let lock1 = acquire_single_instance_lock();
+        assert!(lock1.is_some(), "First lock acquisition should succeed");
+
+        let lock2 = acquire_single_instance_lock();
+        assert!(lock2.is_none(), "Second concurrent lock acquisition must fail");
+
+        drop(lock1);
+
+        let lock3 = acquire_single_instance_lock();
+        assert!(lock3.is_some(), "Lock acquisition should succeed after drop");
     }
 }
