@@ -97,10 +97,12 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 
 ## ✨ Key Features
 
+- ⚙️ **COSMIC Native Settings App (`pulsarkey-settings` / `pulsarkey gui`)**: Complete graphical desktop control panel built with Iced / COSMIC styling, featuring tabs for Overview, Security Profiles, Biometrics & PIN, Audit Journal, Backup Key Assistant, and Emergency Recovery Runbook.
+- 🛟 **Emergency Paper Key & Rescue Suite (`pulsarkey rescue`)**: Generates 8 high-entropy, cryptographically hashed one-time recovery paper tokens (`XXXX-XXXX-XXXX-XXXX`), printable emergency rescue certificates, automated offline rescue USB scripts, and full single-user / Live USB PAM bypass runbooks.
 - 🔒 **Zero-Lag Lockscreen Integration**: Solves the COSMIC Greeter empty-submit filter via an interactive prompt (<kbd>Space</kbd> + <kbd>Enter</kbd>), preventing premature key blinking immediately upon locking and prompting only when you log back in.
 - ⚡ **Touch & Biometric Sudo**: Authenticate `sudo` commands instantly with a single touch or fingerprint scan.
 - 🪟 **Polkit GUI Elevation**: Authorize graphical administrative dialogs (Pop!_Shop, Eddy, COSMIC Settings, and `pkexec`) with a simple fingerprint scan on your physical token.
-- 🛡️ **Security Strictness Profiles**: Switch authentication modes on the fly between **Convenience (1FA)**, **Fortress (True 2FA: Password + Touch)**, and **Lockdown (Hardware Mandatory)** from the panel applet or CLI (`pulsarkey profile`).
+- 🛡️ **Security Strictness Profiles**: Switch authentication modes on the fly between **Convenience (1FA)**, **Fortress (True 2FA: Password + Touch)**, and **Lockdown (Hardware Mandatory)** from the panel applet, GUI, or CLI (`pulsarkey profile`).
 - 📜 **Authentication Audit Journal**: Real-time logging of authentication, elevation, and USB hardware events with an instant panel applet submenu (**Recent Pulses**) and formatted CLI viewer (`pulsarkey audit`).
 - 👯 **Backup Key Pairing & Recovery**: Guided redundant key enrollment and verification (`pulsarkey backup`) ensuring fail-safe multi-key desktop security.
 - 🧬 **Native Biometric & Fingerprint Manager**: Direct on-device biometric enrollment, template renaming, fingerprint deletion, and FIDO2 hardware PIN management (`pulsarkey bio` & `pulsarkey pin`) without requiring external GUI tools.
@@ -120,9 +122,9 @@ If you are compiling from source rather than installing the pre-built `.deb`:
 #### Option A: Native Debian Package (COSMIC Store / APT)
 Download the latest `.deb` package from [Releases](https://github.com/mzia/PulsarKey/releases):
 ```bash
-sudo apt install ./dist/pulsarkey_1.3.0_amd64.deb
+sudo apt install ./dist/pulsarkey_1.4.0_amd64.deb
 ```
-*(Or right-click `pulsarkey_1.3.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
+*(Or right-click `pulsarkey_1.4.0_amd64.deb` in COSMIC Files and select **Open With -> COSMIC Store / Eddy**).*
 
 #### Option B: Build from Source
 ```bash
@@ -171,6 +173,7 @@ The PulsarKey applet provides an interactive menu directly from the COSMIC panel
 
 ```text
 🟢 YubiKey C Bio - FIDO Edition
+⚙️ Open PulsarKey Settings...
 ─────────────────────────────────
 🔒 Lockscreen: FIDO2 (Space+Enter)
 ⚡ Sudo Auth:   FIDO2 (Direct Touch)
@@ -185,6 +188,7 @@ The PulsarKey applet provides an interactive menu directly from the COSMIC panel
 🚀 Setup / Add Key (Terminal)...
 🧬 Biometric Fingerprint Manager (Terminal)...
 👯 Backup Key Assistant (Terminal)...
+🛟 Emergency Rescue Runbook (Terminal)...
 🔑 Hardware SSH & Git Signing (Terminal)...
 📊 View Security Status (Terminal)...
 🔒 Lock Screen Now
@@ -352,6 +356,118 @@ pulsarkey backup test
 
 ---
 
+## ⚙️ COSMIC Native Settings Control Panel (GUI)
+
+For users who prefer a graphical desktop interface over the terminal CLI or panel tray dropdown, PulsarKey includes a dedicated control panel built with **Iced** and styled for the Pop!_OS COSMIC desktop:
+
+```bash
+pulsarkey gui
+# Or launch the standalone binary:
+pulsarkey-settings
+```
+
+You can also launch it with one click:
+- **From the COSMIC Panel Applet**: Click the fingerprint tray icon -> **⚙️ Open PulsarKey Settings...**
+- **From COSMIC App Library**: Search for **PulsarKey Settings** in your desktop application launcher.
+
+```text
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ 🌌 PulsarKey Control Panel                                       [🔄 Refresh] │
+├───────────────────┬───────────────────────────────────────────────────────────┤
+│ [📊 Overview    ] │ System Security Overview                                  │
+│ [🛡️ Profiles    ] │                                                           │
+│ [🧬 Biometrics  ] │  Hardware Detection                                       │
+│ [📜 Audit Log   ] │  Device: YubiKey C Bio - FIDO Edition (Serial: 33648425)   │
+│ [👯 Backup Keys ] │                                                           │
+│ [🛟 Rescue Kit   ] │  Security Configuration                                   │
+│                   │  • Active Profile:   Convenience (1FA Biometric/Touch)     │
+│                   │  • Key Redundancy:   Protected (2 keys enrolled)           │
+│                   │  • Sentinel Auto-Lock: Enabled                             │
+│                   │    [Disable Sentinel Auto-Lock]                           │
+│ v1.4.0 Pop!_OS    │                                                           │
+└───────────────────┴───────────────────────────────────────────────────────────┘
+```
+
+#### Control Panel Features:
+- **📊 Overview**: Live telemetry of connected tokens, firmware, security profile, and Sentinel auto-lock toggle.
+- **🛡️ Security Profiles**: Compare and switch between **Convenience**, **Fortress**, and **Lockdown** profiles with administrative `pkexec` elevation.
+- **🧬 Biometrics & PIN**: Monitor on-key fingerprint health, enroll new fingers, rename templates, and manage FIDO2 PIN retry counters.
+- **📜 Audit Journal**: Live graphical viewer displaying recent authentication pulses, privilege escalations, and hardware events.
+- **👯 Backup Keys**: Redundancy diagnostics and one-click launcher for the secondary key pairing wizard.
+- **🛟 Emergency Rescue**: Monitor available recovery tokens, generate new recovery certificates, and view the emergency runbook.
+
+---
+
+## 🛟 Emergency Paper Recovery Key & Offline Rescue Suite
+
+PulsarKey includes an enterprise-grade offline recovery mechanism to guarantee that you can **always recover root access and regain control of your desktop**, even in the catastrophic event that all registered physical YubiKeys are simultaneously lost, stolen, or destroyed.
+
+### 1. Generate Emergency Paper Key (Recovery Tokens)
+```bash
+pulsarkey rescue generate
+```
+This command:
+1. Generates 8 high-entropy, Crockford Base32 single-use recovery codes (`XXXX-XXXX-XXXX-XXXX`).
+2. Cryptographically hashes each code with SHA-256 and saves the authorization map to `~/.config/pulsarkey/recovery_codes.auth` (or `/etc/pulsarkey/` with mode `0600`).
+3. Formats and saves a printable certificate directly to your desktop:
+   `~/Desktop/PulsarKey-Emergency-Recovery-Kit.txt`
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│ 🛡️ PULSARKEY EMERGENCY RECOVERY KIT & PAPER KEY (Pop!_OS COSMIC)       │
+├────────────────────────────────────────────────────────────────────────┤
+│  [1]  42SF-8VSR-KU6K-BWRL           [5]  85SQ-TVXZ-ZNZC-J5DV           │
+│  [2]  JSQX-7R3V-B7L4-5HQG           [6]  MQ45-3AL6-TPXE-HBCV           │
+│  [3]  HES6-WGYE-65CM-TKR7           [7]  PCSU-MXDW-XH5E-TMX7           │
+│  [4]  X4QJ-CBKW-5RFQ-D958           [8]  N85L-ATX8-6PME-THXM           │
+└────────────────────────────────────────────────────────────────────────┘
+```
+> [!IMPORTANT]
+> Print this document and store it in a physically secure location (e.g. fireproof safe). Each code can be used exactly once.
+
+### 2. Verify and Consume a Recovery Token
+```bash
+pulsarkey rescue verify 42SF-8VSR-KU6K-BWRL
+```
+*Validates the SHA-256 hash, marks the token as USED with a cryptographic timestamp, and prevents replay attacks.*
+
+### 3. Check Recovery Token Health
+```bash
+pulsarkey rescue status
+```
+
+### 4. Interactive Emergency Runbook
+Display offline disaster recovery procedures directly in your terminal:
+```bash
+pulsarkey rescue runbook
+```
+*(Or launch it directly from the panel applet: **🛟 Emergency Rescue Runbook (Terminal)...**).*
+
+The runbook provides step-by-step instructions for:
+- **Method 1: Single-User Mode (No Live USB needed)**:
+  1. Hold <kbd>Space</kbd> on system boot to open the `systemd-boot` menu.
+  2. Press <kbd>e</kbd> on the Pop!_OS entry and append `init=/bin/bash` to the kernel parameters.
+  3. Boot directly into root maintenance mode, remount root read-write (`mount -o remount,rw /`), and run `pulsarkey profile convenience` (or `pulsarkey rollback`).
+- **Method 2: Live USB LUKS Chroot PAM Bypass**:
+  One-liner to unlock LUKS and disable PAM hardware enforcement from any Ubuntu/Pop!_OS installer USB:
+  ```bash
+  sudo cryptsetup luksOpen /dev/nvme0n1p3 cryptdata && sudo mount /dev/mapper/data-root /mnt
+  sudo sed -i 's/^auth.*pam_u2f.so.*/# &/' /mnt/etc/pam.d/sudo /mnt/etc/pam.d/cosmic-greeter
+  ```
+
+### 5. Automated Offline Rescue Flash Drive Creator
+Prepare a self-contained offline emergency rescue flash drive before an emergency occurs:
+```bash
+sudo pulsarkey rescue usb /media/$USER/<USB_NAME>
+```
+Creates `pulsar-rescue.sh` on the USB drive. In a crisis, boot any Live USB, plug in the flash drive, and run:
+```bash
+sudo bash pulsar-rescue.sh
+```
+The script auto-detects encrypted LUKS partitions (`cryptdata`), mounts the filesystem, creates safety backups (`.rescue.bak`), and reverts PAM to standard password authentication automatically.
+
+---
+
 ## 🧪 Verification & Testing
 
 1. **Test Sudo Authentication**:
@@ -393,11 +509,56 @@ pulsarkey backup test
    pulsarkey bio
    ```
 
-7. **Test Audit Journal & Profiles**:
+8. **Launch Native Settings Control Panel (GUI)**:
    ```bash
-   pulsarkey audit
-   pulsarkey profile
+   pulsarkey gui        # Or pulsarkey-settings
    ```
+   *Opens the modern, dark-themed Iced desktop window with full tabbed controls for hardware telemetry, profile switching, biometrics, audit logs, and emergency rescue.*
+
+9. **Generate Emergency Paper Recovery Key**:
+   ```bash
+   pulsarkey rescue generate
+   ```
+   *Generates 8 high-entropy, SHA-256 hashed recovery tokens and saves a printable emergency kit to your Desktop (`PulsarKey-Emergency-Recovery-Kit.txt`).*
+
+10. **View Offline Emergency Runbook**:
+    ```bash
+    pulsarkey rescue runbook
+    ```
+    *Provides step-by-step offline procedures to recover root access via systemd-boot single-user mode or Live USB chroot if all hardware tokens are destroyed.*
+
+11. **Create Emergency Rescue USB Script**:
+    ```bash
+    sudo pulsarkey rescue usb /media/$USER/<USB_NAME>
+    ```
+    *Writes an automated offline rescue shell script (`pulsar-rescue.sh`) with auto-LUKS detection to restore password PAM access from any Live USB environment.*
+
+---
+
+## 📋 CLI Command Quick Reference
+
+| Command | Privileges | Description |
+| :--- | :--- | :--- |
+| `pulsarkey gui` *(or `pulsarkey-settings`)* | User | Launches the COSMIC native settings desktop control panel window |
+| `pulsarkey status` | User | Displays comprehensive security status, PAM states, profiles & key health |
+| `pulsarkey applet [--install-autostart]` | User | Runs the COSMIC panel StatusNotifierItem applet |
+| `sudo pulsarkey setup` | Root | Guided enrollment of primary & backup tokens, PAM & udev configuration |
+| `sudo pulsarkey profile [convenience\|fortress\|lockdown]` | Root | Switches live security strictness profile |
+| `pulsarkey profile status` | User | Displays active security profile and mode descriptions |
+| `pulsarkey bio` | User | Interactive on-key fingerprint & PIN management dashboard |
+| `pulsarkey bio [list\|add\|rename\|delete]` | User | Granular biometric template commands |
+| `pulsarkey pin [status\|change\|verify\|set]` | User | FIDO2 hardware PIN management & retry status |
+| `sudo pulsarkey backup pair` | Root | Interactive wizard to pair secondary backup YubiKey |
+| `pulsarkey backup [status\|test]` | User | Inspects hardware key redundancy and tests secondary key |
+| `pulsarkey rescue generate` | User / Root | Generates 8 one-time emergency paper keys with desktop certificate |
+| `pulsarkey rescue verify <CODE>` | User / Root | Validates and consumes single-use emergency recovery paper token |
+| `pulsarkey rescue status` | User | Displays remaining/consumed emergency recovery paper tokens |
+| `pulsarkey rescue runbook` | User | Displays offline disaster recovery runbook (single-user & chroot) |
+| `sudo pulsarkey rescue usb <PATH>` | Root | Creates automated offline `pulsar-rescue.sh` script on USB flash drive |
+| `pulsarkey audit [--clear]` | User | Formatted table viewer for authentication pulses & hardware events |
+| `pulsarkey autolock [enable\|disable\|status]` | User | Toggles Presence Sentinel desktop lock on key removal |
+| `pulsarkey ssh-setup` | User | Hardware-backed FIDO2 SSH key & Git commit signing wizard |
+| `sudo pulsarkey uninstall [--purge-packages]` | Root | Reverts all PAM configurations and restores password authentication |
 
 ---
 
@@ -418,9 +579,13 @@ sudo pulsarkey uninstall --purge-packages
 
 ```
 PulsarKey/
-├── Cargo.toml                                 # Rust build manifest (pulsarkey & cosmic-fido2)
+├── Cargo.toml                                 # Rust build manifest (pulsarkey, cosmic-fido2, pulsarkey-settings)
 ├── src/
-│   ├── main.rs                                # CLI entry point (setup, uninstall, status)
+│   ├── lib.rs                                 # Core library & shared module declarations
+│   ├── main.rs                                # CLI entry point (setup, uninstall, status, rescue, bio)
+│   ├── gui_main.rs                            # Dedicated binary entry point for pulsarkey-settings GUI
+│   ├── gui.rs                                 # COSMIC native Iced GUI desktop control panel
+│   ├── rescue.rs                              # Emergency paper recovery tokens & offline rescue runbook
 │   ├── applet.rs                              # COSMIC StatusNotifierItem panel applet
 │   ├── audit.rs                               # Authentication Audit Journal ('Recent Pulses')
 │   ├── backup.rs                              # Backup Key pairing & redundancy assistant
@@ -441,7 +606,7 @@ PulsarKey/
 │       ├── ci.yml                             # Continuous integration (build, test, appstream)
 │       └── release.yml                        # Automated GitHub Releases & .deb distribution
 ├── dist/
-│   └── pulsarkey_1.3.0_amd64.deb              # Pre-compiled native Debian package
+│   └── pulsarkey_1.4.0_amd64.deb              # Pre-compiled native Debian package
 ├── Makefile                                   # 'make build', 'make install', 'make deb'
 ├── LICENSE                                    # MIT License
 └── README.md                                  # Documentation

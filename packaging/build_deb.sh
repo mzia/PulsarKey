@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="1.3.0"
+VERSION="1.4.0"
 ARCH="amd64"
 PKG_DIR="packaging/deb/pulsarkey_${VERSION}_${ARCH}"
 
@@ -24,6 +24,8 @@ mkdir -p "${PKG_DIR}/DEBIAN" \
 cp target/release/pulsarkey "${PKG_DIR}/usr/bin/pulsarkey"
 chmod 755 "${PKG_DIR}/usr/bin/pulsarkey"
 ln -sf pulsarkey "${PKG_DIR}/usr/bin/cosmic-fido2"
+cp target/release/pulsarkey-settings "${PKG_DIR}/usr/bin/pulsarkey-settings"
+chmod 755 "${PKG_DIR}/usr/bin/pulsarkey-settings"
 
 # Icons
 cp packaging/cosmic-fido2.svg "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps/io.github.mzia.PulsarKey.svg"
@@ -32,8 +34,8 @@ ln -sf io.github.mzia.PulsarKey.svg "${PKG_DIR}/usr/share/icons/hicolor/scalable
 # Desktop entries
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.desktop"
 [Desktop Entry]
-Name=PulsarKey
-GenericName=FIDO2 Security Key Manager
+Name=PulsarKey Status
+GenericName=FIDO2 Security Key Status
 Comment=Hardware-backed FIDO2 & Biometric Authentication Manager for Pop!_OS COSMIC
 Exec=cosmic-term -e bash -c "pulsarkey status; echo ''; read -p 'Press Enter to exit...'"
 Icon=io.github.mzia.PulsarKey
@@ -41,6 +43,20 @@ Terminal=false
 Type=Application
 Categories=Settings;System;Security;Utility;
 Keywords=pulsar;yubikey;fido2;u2f;security;biometric;cosmic;pam;greeter;
+StartupNotify=true
+EOF
+
+cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.Settings.desktop"
+[Desktop Entry]
+Name=PulsarKey Settings
+GenericName=Security & Hardware Control Panel
+Comment=COSMIC Native Settings Control Panel for YubiKey FIDO2 & Biometrics
+Exec=/usr/bin/pulsarkey-settings
+Icon=io.github.mzia.PulsarKey
+Terminal=false
+Type=Application
+Categories=Settings;System;Security;Utility;COSMIC;
+Keywords=pulsar;yubikey;fido2;u2f;security;biometric;cosmic;settings;profiles;rescue;
 StartupNotify=true
 EOF
 
@@ -124,8 +140,14 @@ cat << 'EOF' > "${PKG_DIR}/usr/share/metainfo/io.github.mzia.PulsarKey.metainfo.
   <provides>
     <binary>pulsarkey</binary>
     <binary>cosmic-fido2</binary>
+    <binary>pulsarkey-settings</binary>
   </provides>
   <releases>
+    <release version="1.4.0" date="2026-09-15">
+      <description>
+        <p>Introduces COSMIC Native Settings App ('pulsarkey-settings' / 'pulsarkey gui') with full graphical control panel and Emergency Paper Recovery Key &amp; Offline Rescue Runbook Suite ('pulsarkey rescue').</p>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-09-15">
       <description>
         <p>Introduces Security Strictness Profiles (Convenience, Fortress 2FA, Lockdown), Authentication Audit Journal ('Recent Pulses'), and Backup Key Pairing &amp; Recovery Assistant.</p>

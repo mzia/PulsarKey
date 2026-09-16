@@ -236,6 +236,15 @@ impl Tray for YubiKeyApplet {
                 ..Default::default()
             }
             .into(),
+            // Action: Open Native Settings GUI
+            StandardItem {
+                label: "⚙️ Open PulsarKey Settings...".into(),
+                activate: Box::new(|_| {
+                    let _ = Command::new("pulsarkey-settings").spawn();
+                }),
+                ..Default::default()
+            }
+            .into(),
             MenuItem::Separator,
             // Configuration summary
             StandardItem {
@@ -417,6 +426,17 @@ impl Tray for YubiKeyApplet {
                 activate: Box::new(|_| {
                     let _ = Command::new("cosmic-term")
                         .args(["-e", "sudo", "pulsarkey", "backup"])
+                        .spawn();
+                }),
+                ..Default::default()
+            }
+            .into(),
+            // Action: Emergency Recovery & Runbook
+            StandardItem {
+                label: "🛟 Emergency Rescue Runbook (Terminal)...".into(),
+                activate: Box::new(|_| {
+                    let _ = Command::new("cosmic-term")
+                        .args(["-e", "bash", "-c", "pulsarkey rescue runbook; echo ''; read -p 'Press Enter to close...'"])
                         .spawn();
                 }),
                 ..Default::default()

@@ -12,19 +12,21 @@ This directory contains production packaging assets for **PulsarKey** across bot
 Pop!_OS COSMIC natively supports 1-click `.deb` package installation through the COSMIC Store and Eddy.
 
 ### Ready-Built Package:
-`dist/pulsarkey_1.3.0_amd64.deb`
+`dist/pulsarkey_1.4.0_amd64.deb`
 
 ### Installation Methods:
 - **COSMIC Store / Eddy**:
-  Right-click `pulsarkey_1.3.0_amd64.deb` in COSMIC Files -> **Open With -> Eddy / COSMIC Store** -> Click **Install**.
+  Right-click `pulsarkey_1.4.0_amd64.deb` in COSMIC Files -> **Open With -> Eddy / COSMIC Store** -> Click **Install**.
 - **CLI / APT**:
   ```bash
-  sudo apt install ./dist/pulsarkey_1.3.0_amd64.deb
+  sudo apt install ./dist/pulsarkey_1.4.0_amd64.deb
   ```
 
 ### What the `.deb` package installs:
 - `/usr/bin/pulsarkey`: The compiled Rust manager & applet (with `/usr/bin/cosmic-fido2` symlink)
-- `/usr/share/applications/io.github.mzia.PulsarKey.desktop`: Desktop launcher
+- `/usr/bin/pulsarkey-settings`: The native COSMIC graphical control panel window
+- `/usr/share/applications/io.github.mzia.PulsarKey.desktop`: Status launcher
+- `/usr/share/applications/io.github.mzia.PulsarKey.Settings.desktop`: Settings control panel desktop launcher
 - `/etc/xdg/autostart/io.github.mzia.PulsarKey.Applet.desktop`: Automatic panel applet on login
 - `/usr/lib/systemd/user/pulsarkey-applet.service`: Systemd user service
 - `/usr/share/icons/hicolor/scalable/apps/io.github.mzia.PulsarKey.svg`: Vector icon

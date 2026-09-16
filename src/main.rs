@@ -13,13 +13,7 @@ const PAM_GREETER: &str = "/etc/pam.d/cosmic-greeter";
 const PAM_POLKIT: &str = "/etc/pam.d/polkit-1";
 const TEMPLATE_POLKIT: &str = "/usr/lib/pam.d/polkit-1";
 
-mod applet;
-mod audit;
-mod backup;
-mod bio;
-mod config;
-mod profiles;
-mod ssh_setup;
+use pulsarkey::*;
 
 #[derive(Parser)]
 #[command(
@@ -102,51 +96,21 @@ enum Commands {
         #[arg(value_name = "ACTION")]
         action: Option<String>,
     },
+    /// Launch the COSMIC native settings control panel GUI
+    Gui,
+    /// Open the COSMIC native settings control panel GUI
+    Settings,
+    /// Manage emergency paper recovery keys and offline rescue runbooks
+    Rescue {
+        /// Action: "generate", "status", "verify", "runbook", or "usb"
+        #[arg(value_name = "ACTION")]
+        action: Option<String>,
+        /// Optional argument (e.g. recovery code or USB mount path)
+        #[arg(value_name = "ARG")]
+        arg: Option<String>,
+    },
 }
 
-#[derive(Subcommand, Debug, Clone)]
-pub enum BioCommands {
-    /// List registered fingerprints on the security key
-    List {
-        /// FIDO2 PIN (prompted securely if omitted)
-        #[arg(short, long)]
-        pin: Option<String>,
-    },
-    /// Enroll a new fingerprint
-    Add {
-        /// Name / label for the fingerprint (e.g. "Right Index")
-        name: Option<String>,
-        /// FIDO2 PIN (prompted securely if omitted)
-        #[arg(short, long)]
-        pin: Option<String>,
-    },
-    /// Delete a registered fingerprint
-    Delete {
-        /// Fingerprint ID to delete
-        id: Option<String>,
-        /// FIDO2 PIN (prompted securely if omitted)
-        #[arg(short, long)]
-        pin: Option<String>,
-        /// Delete without confirmation prompt
-        #[arg(short, long)]
-        force: bool,
-    },
-    /// Rename a registered fingerprint
-    Rename {
-        /// Fingerprint ID to rename
-        id: Option<String>,
-        /// New name / label (max 15 chars)
-        name: Option<String>,
-        /// FIDO2 PIN (prompted securely if omitted)
-        #[arg(short, long)]
-        pin: Option<String>,
-    },
-    /// Set or change FIDO2 hardware PIN
-    Pin {
-        /// Action: "change", "set", "verify", or "status"
-        action: Option<String>,
-    },
-}
 
 fn main() {
     let cli = Cli::parse();
@@ -196,6 +160,15 @@ fn main() {
         }
         Commands::Backup { action } => {
             backup::handle_backup_cli(action);
+        }
+        Commands::Gui | Commands::Settings => {
+            if let Err(e) = gui::run_gui() {
+                eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::Rescue { action, arg } => {
+            rescue::handle_rescue_cli(action, arg);
         }
     }
 }
@@ -266,22 +239,6 @@ fn get_target_user() -> (String, PathBuf) {
     (username, home_dir)
 }
 
-/// Ensures the program is executed with root/sudo privileges
-fn ensure_root(action: &str) {
-    let uid = unsafe { libc::geteuid() };
-    if uid != 0 {
-        eprintln!(
-            "{} Root privileges required to {} system authentication.",
-            "❌ Error:".bold().red(),
-            action
-        );
-        eprintln!(
-            "Please run with sudo: {}",
-            format!("sudo pulsarkey {}", action).bold().yellow()
-        );
-        std::process::exit(1);
-    }
-}
 
 // ---------------------------------------------------------
 // SETUP
@@ -698,6 +655,17 @@ fn run_status() {
             format!("Protected ({} keys enrolled)", enrolled_keys.len()).green()
         } else {
             "Single key enrolled (No backup)".yellow()
+        }
+    );
+
+    // Check Emergency Rescue Kit
+    let rescue_st = rescue::check_recovery_status();
+    println!(
+        "Emergency Rescue Kit:    {}",
+        if rescue_st.is_configured {
+            format!("Active ({} paper tokens available)", rescue_st.unused).green()
+        } else {
+            "Not generated (Run 'pulsarkey rescue generate')".yellow()
         }
     );
 
