@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="1.4.0"
+VERSION="${1:-$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)}"
 ARCH="amd64"
 PKG_DIR="packaging/deb/pulsarkey_${VERSION}_${ARCH}"
 

@@ -189,7 +189,7 @@ impl SettingsApp {
                 .width(Length::Fill)
                 .on_press(Message::SelectTab(Tab::Rescue)),
             Space::new().height(Length::Fill),
-            text(format!("v1.4.0 {}", crate::platform::get_os_display_name())).size(12),
+            text(format!("v{} {}", env!("CARGO_PKG_VERSION"), crate::platform::get_os_display_name())).size(12),
         ]
         .spacing(8)
         .width(180)

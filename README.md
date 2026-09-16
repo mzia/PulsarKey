@@ -18,14 +18,14 @@
 #### 🐧 Pop!_OS / Linux
 Download the `.deb` package from the [Latest Release](https://github.com/mzia/PulsarKey/releases):
 ```bash
-sudo apt install ./pulsarkey_1.4.0_amd64.deb
+sudo apt install ./pulsarkey_1.4.1_amd64.deb
 ```
 *(Or build from source: `git clone https://github.com/mzia/PulsarKey.git && cd PulsarKey && cargo build --release && sudo make install`)*
 
 #### 🍎 macOS (Monterey 12+)
 Download your preferred installer from the [Latest Release](https://github.com/mzia/PulsarKey/releases):
-- **Guided Installer**: Download and run **`PulsarKey-1.4.0.pkg`**
-- **Drag-and-Drop**: Open **`PulsarKey-1.4.0.dmg`** and drag to `/Applications`
+- **Guided Installer**: Download and run **`PulsarKey-1.4.1.pkg`**
+- **Drag-and-Drop**: Open **`PulsarKey-1.4.1.dmg`** and drag to `/Applications`
 - **Homebrew Cask**:
   ```bash
   brew install pam-u2f ykman
@@ -247,7 +247,7 @@ PulsarKey/
 │       ├── io.github.mzia.PulsarKey.metainfo.xml # AppStream 1.0 metadata
 │       └── io.github.mzia.PulsarKey.desktop   # Desktop launcher
 ├── dist/
-│   └── pulsarkey_1.4.0_amd64.deb              # Pre-compiled native Debian package
+│   └── pulsarkey_1.4.1_amd64.deb              # Pre-compiled native Debian package
 ├── Makefile                                   # 'make build', 'make install', 'make deb'
 ├── LICENSE                                    # MIT License
 └── README.md                                  # Documentation
