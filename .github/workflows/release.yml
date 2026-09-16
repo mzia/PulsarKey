@@ -6,12 +6,9 @@ on:
       - 'v*'
 
 jobs:
-  release:
-    name: Build Debian Package and Release
+  release-linux:
+    name: Build Linux (.deb) Package
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -19,22 +16,69 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev
+          sudo apt-get install -y dpkg-dev libdbus-1-dev
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Build Release
-        run: cargo build --release
 
       - name: Build Debian Package
         run: |
           chmod +x packaging/build_deb.sh
           ./packaging/build_deb.sh
 
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-package
+          path: dist/pulsarkey_*_amd64.deb
+
+  release-macos:
+    name: Build macOS (.dmg & .pkg) Packages
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build macOS App Bundle, DMG, and PKG
+        run: |
+          chmod +x packaging/macos/build_mac.sh
+          ./packaging/macos/build_mac.sh
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-package
+          path: |
+            dist/*.dmg
+            dist/*.pkg
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [release-linux, release-macos]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-package
+          path: dist-release/
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-package
+          path: dist-release/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            packaging/pulsarkey_*_amd64.deb
+          files: dist-release/*
           generate_release_notes: true
