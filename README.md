@@ -52,10 +52,10 @@ The wizard will:
 
 ### 3. Launch PulsarKey or Panel Applet
 
-- **Interactive Selection Menu & Settings**:
+- **Interactive Security Dashboard**:
   ```bash
-  pulsarkey           # Launches interactive menu: select Settings GUI [2] or Status [1]
-  pulsarkey -g        # Direct shortcut to open Settings GUI window (or: pulsarkey gui)
+  pulsarkey           # Launches interactive terminal control suite
+  pulsarkey status    # Direct summary of security profile, PAM health, & keys
   ```
 - **Top Bar Panel Applet** (COSMIC Linux):
   ```bash
@@ -87,24 +87,25 @@ PulsarKey continuously monitors token presence. The second you unplug your YubiK
   ```bash
   pulsarkey autolock enable     # or disable / status
   ```
-  *(Or toggle directly with one click from the Settings GUI or panel applet).*
+  *(Or toggle directly from the CLI or panel applet).*
 
 ---
 
-## ⚙️ Graphical Settings App (`pulsarkey gui`)
+## ⚙️ Interactive Security Control Center (`pulsarkey`)
 
-PulsarKey includes a modern, dark-themed native desktop control panel built with **Iced** (supporting Wayland/Vulkan on Linux and Apple Metal on macOS):
+PulsarKey provides an interactive terminal control suite and native COSMIC panel applet with sub-second response times:
 
-Launch via `pulsarkey gui` (or the standalone `pulsarkey-settings` binary):
+Launch via `pulsarkey`:
 
-| Tab | What You Can Do |
+| Menu Option | What You Can Do |
 | :--- | :--- |
-| **📊 Overview** | Live hardware telemetry, active security profile, and Sentinel auto-lock toggle |
-| **🛡️ Profiles** | One-click switching between Convenience, Fortress (2FA), and Lockdown profiles |
-| **🧬 Biometrics & PIN** | View on-key fingerprints, enroll new fingers, rename templates, manage FIDO2 PIN |
-| **📜 Audit Journal** | Live viewer for authentication events, elevations, and USB hardware events |
-| **👯 Backup Keys** | Redundancy health check and guided pairing for secondary security keys |
-| **🛟 Rescue Kit** | Generate emergency recovery paper tokens and access offline rescue runbooks |
+| **[1] 📊 Overview** | Live hardware telemetry, active security profile, PAM health, and Sentinel auto-lock status |
+| **[2] 🛡️ Profiles** | One-click switching between Convenience, Fortress (2FA), and Lockdown profiles |
+| **[3] 🧬 Biometrics & PIN** | View on-key fingerprints, enroll new fingers, rename templates, manage FIDO2 PIN |
+| **[4] 👯 Backup Keys** | Redundancy health check and guided pairing for secondary security keys |
+| **[5] 🛟 Rescue Kit** | Generate emergency recovery paper tokens and access offline rescue runbooks |
+| **[6] 🔑 SSH & Git Signing** | Generate hardware-backed `ed25519-sk` keys and configure commit verification |
+| **[7] 🛡️ Presence Sentinel** | Toggle automatic workstation lock upon USB key removal |
 
 ---
 
@@ -122,7 +123,7 @@ Switch anytime:
 ```bash
 sudo pulsarkey profile [convenience | fortress | lockdown]
 ```
-*(Or switch directly from the **🛡️ Profiles** tab in the Settings App).*
+*(Or switch directly from the interactive menu or panel applet).*
 
 ---
 
@@ -183,7 +184,7 @@ PulsarKey guarantees you **never get locked out** if your hardware keys are lost
 
 | Command | Privileges | Description |
 | :--- | :--- | :--- |
-| `pulsarkey gui` *(or `pulsarkey-settings`)* | User | Launches the native settings desktop control panel window |
+| `pulsarkey` | User | Launches interactive Security Control Center dashboard |
 | `pulsarkey status` | User | Displays comprehensive security status and hardware health |
 | `pulsarkey applet [--install-autostart]` | User | Runs COSMIC panel applet (Linux) or Sentinel daemon (macOS) |
 | `sudo pulsarkey setup` | Root | Guided enrollment for primary & backup keys and PAM setup |
@@ -221,8 +222,8 @@ PulsarKey/
 ├── src/
 │   ├── lib.rs                                 # Core library & shared module declarations
 │   ├── main.rs                                # CLI entry point (setup, uninstall, status, rescue, bio)
-│   ├── gui_main.rs                            # Dedicated binary entry point for pulsarkey-settings GUI
-│   ├── gui.rs                                 # Native Iced GUI desktop control panel (Linux/macOS)
+│   ├── gui_main.rs                            # Dedicated binary entry point for pulsarkey-settings (deprecation stub)
+│   ├── gui.rs                                 # Deprecation notice stubs (replaces legacy GUI)
 │   ├── platform/                              # Cross-platform abstractions (Linux / macOS PAM, locking, notifications)
 │   │   └── mod.rs
 │   ├── rescue.rs                              # Emergency paper recovery tokens & offline rescue runbook
