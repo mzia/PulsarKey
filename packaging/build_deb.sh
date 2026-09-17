@@ -58,6 +58,7 @@ Type=Application
 Categories=Settings;System;Security;Utility;COSMIC;
 Keywords=pulsar;yubikey;fido2;u2f;security;biometric;cosmic;settings;profiles;rescue;
 StartupNotify=true
+NoDisplay=true
 EOF
 
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.Applet.desktop"
