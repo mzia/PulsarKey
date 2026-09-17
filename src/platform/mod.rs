@@ -87,7 +87,7 @@ pub fn send_desktop_notification(title: &str, body: &str, is_critical: bool) {
                 "-u",
                 urgency,
                 "-i",
-                "auth-fingerprint-symbolic",
+                "security-high-symbolic",
                 title,
                 body,
             ])

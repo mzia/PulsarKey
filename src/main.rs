@@ -303,10 +303,11 @@ Icon=io.github.mzia.PulsarKey\n\
 Terminal=false\n\
 Type=Application\n\
 Categories=COSMIC;Utility;Security;\n\
-X-CosmicApplet=true\n";
+X-CosmicApplet=true\n\
+NoDisplay=true\n";
 
-    let autostart_file = autostart_dir.join("io.github.mzia.PulsarKey.desktop");
-    let app_file = apps_dir.join("io.github.mzia.PulsarKey.desktop");
+    let autostart_file = autostart_dir.join("io.github.mzia.PulsarKey.Applet.desktop");
+    let app_file = apps_dir.join("io.github.mzia.PulsarKey.Applet.desktop");
 
     let _ = fs::write(&autostart_file, desktop_content);
     let _ = fs::write(&app_file, desktop_content);

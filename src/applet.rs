@@ -174,7 +174,7 @@ impl Tray for YubiKeyApplet {
 
     fn icon_name(&self) -> String {
         if self.is_connected {
-            "auth-fingerprint-symbolic".into()
+            "security-high-symbolic".into()
         } else {
             "security-low-symbolic".into()
         }
@@ -336,7 +336,7 @@ impl Tray for YubiKeyApplet {
                         let _ = Command::new("notify-send")
                             .args([
                                 "-i",
-                                "auth-fingerprint-symbolic",
+                                "security-high-symbolic",
                                 "YubiKey Biometric Test",
                                 "Please scan your fingerprint on the YubiKey...",
                             ])
@@ -348,7 +348,7 @@ impl Tray for YubiKeyApplet {
                                 let _ = Command::new("notify-send")
                                     .args([
                                         "-i",
-                                        "auth-fingerprint-symbolic",
+                                        "security-high-symbolic",
                                         "YubiKey Bio",
                                         "✅ Fingerprint verified successfully!",
                                     ])
@@ -466,19 +466,27 @@ fn acquire_single_instance_lock() -> Option<fs::File> {
         .unwrap_or_else(|_| format!("/tmp/user-{}", unsafe { libc::getuid() }));
     let _ = fs::create_dir_all(&runtime_dir);
     let lock_path = PathBuf::from(runtime_dir).join("pulsarkey-applet.lock");
+    acquire_single_instance_lock_at(&lock_path)
+}
 
-    let file = fs::OpenOptions::new()
+fn acquire_single_instance_lock_at(lock_path: &std::path::Path) -> Option<fs::File> {
+    use std::io::Write;
+
+    let mut file = fs::OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
-        .open(&lock_path)
+        .open(lock_path)
         .ok()?;
 
     let res = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if res != 0 {
         return None;
     }
+
+    let _ = file.set_len(0);
+    let _ = writeln!(file, "{}", std::process::id());
 
     Some(file)
 }
@@ -534,15 +542,20 @@ mod tests {
 
     #[test]
     fn test_single_instance_lock() {
-        let lock1 = acquire_single_instance_lock();
+        let test_lock_path = std::env::temp_dir().join(format!("pulsarkey-test-lock-{}.lock", std::process::id()));
+        let _ = fs::remove_file(&test_lock_path);
+
+        let lock1 = acquire_single_instance_lock_at(&test_lock_path);
         assert!(lock1.is_some(), "First lock acquisition should succeed");
 
-        let lock2 = acquire_single_instance_lock();
+        let lock2 = acquire_single_instance_lock_at(&test_lock_path);
         assert!(lock2.is_none(), "Second concurrent lock acquisition must fail");
 
         drop(lock1);
 
-        let lock3 = acquire_single_instance_lock();
+        let lock3 = acquire_single_instance_lock_at(&test_lock_path);
         assert!(lock3.is_some(), "Lock acquisition should succeed after drop");
+
+        let _ = fs::remove_file(&test_lock_path);
     }
 }
