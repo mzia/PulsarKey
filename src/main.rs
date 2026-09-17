@@ -113,15 +113,13 @@ enum Commands {
 }
 
 
+#[allow(deprecated)]
 fn main() {
     let cli = Cli::parse();
 
-    // Fast-path: direct -g / --gui flag
+    // Fast-path: direct -g / --gui flag (Deprecated)
     if cli.gui {
-        if let Err(e) = gui::run_gui() {
-            eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
-            std::process::exit(1);
-        }
+        gui::print_deprecation_notice();
         return;
     }
 
@@ -172,10 +170,7 @@ fn main() {
             backup::handle_backup_cli(action);
         }
         Some(Commands::Gui) | Some(Commands::Settings) => {
-            if let Err(e) = gui::run_gui() {
-                eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
-                std::process::exit(1);
-            }
+            gui::print_deprecation_notice();
         }
         Some(Commands::Rescue { action, arg }) => {
             rescue::handle_rescue_cli(action, arg);
@@ -184,16 +179,14 @@ fn main() {
             if std::io::stdin().is_terminal() || std::io::stdout().is_terminal() {
                 run_interactive_selection();
             } else {
-                if let Err(e) = gui::run_gui() {
-                    eprintln!("Failed to launch PulsarKey Settings GUI: {}", e);
-                    std::process::exit(1);
-                }
+                run_status();
             }
         }
     }
 }
 
 /// Interactive view selection when pulsarkey is run without arguments in a terminal
+#[allow(deprecated)]
 fn run_interactive_selection() {
     println!("{}", "==================================================".cyan());
     println!(
@@ -203,55 +196,52 @@ fn run_interactive_selection() {
     );
     println!("{}", "==================================================".cyan());
     println!("Please select a view or action:");
-    println!("  {}  📊 View Security Status Dashboard", "[1]".bold().green());
-    println!("  {}  ⚙️  Open Settings Control Panel (GUI Window)", "[2]".bold().green());
-    println!("  {}  🛡️  Security Strictness Profiles", "[3]".bold().green());
-    println!("  {}  🧬 On-Key Biometrics & PIN Manager", "[4]".bold().green());
-    println!("  {}  👯 Backup Key Assistant", "[5]".bold().green());
-    println!("  {}  🛟 Emergency Recovery Kit & Runbook", "[6]".bold().green());
-    println!("  {}  🔑 Hardware SSH & Git Signing Setup", "[7]".bold().green());
-    println!("  {}  🛡️  Presence Sentinel Auto-Lock", "[8]".bold().green());
+    println!("  {}  📊 View Security Status Dashboard (Default)", "[1]".bold().green());
+    println!("  {}  🛡️  Security Strictness Profiles", "[2]".bold().green());
+    println!("  {}  🧬 On-Key Biometrics & PIN Manager", "[3]".bold().green());
+    println!("  {}  👯 Backup Key Assistant", "[4]".bold().green());
+    println!("  {}  🛟 Emergency Recovery Kit & Runbook", "[5]".bold().green());
+    println!("  {}  🔑 Hardware SSH & Git Signing Setup", "[6]".bold().green());
+    println!("  {}  🛡️  Presence Sentinel Auto-Lock", "[7]".bold().green());
     println!("  {}  🚪 Exit", "[q]".bold().yellow());
     println!("{}", "==================================================".cyan());
-    print!("Selection [1-8, or 2 for GUI Settings]: ");
+    print!("Selection [1-7, or Enter for Status]: ");
     let _ = io::stdout().flush();
 
     let mut input = String::new();
     if io::stdin().read_line(&mut input).is_ok() {
         match input.trim().to_lowercase().as_str() {
-            "1" | "status" | "s" => {
+            "1" | "status" | "s" | "" => {
                 println!();
                 run_status();
             }
-            "2" | "gui" | "g" | "settings" | "" => {
-                println!("\nLaunching PulsarKey Settings GUI view...");
-                if let Err(e) = gui::run_gui() {
-                    eprintln!("Failed to launch Settings GUI: {}", e);
-                }
-            }
-            "3" | "profile" | "p" => {
+            "2" | "profile" | "p" => {
                 println!();
                 profiles::handle_profile_cli(None);
             }
-            "4" | "bio" | "b" => {
+            "3" | "bio" | "b" => {
                 println!();
                 bio::handle_bio_cli(None);
             }
-            "5" | "backup" => {
+            "4" | "backup" => {
                 println!();
                 backup::handle_backup_cli(None);
             }
-            "6" | "rescue" | "r" => {
+            "5" | "rescue" | "r" => {
                 println!();
                 rescue::handle_rescue_cli(None, None);
             }
-            "7" | "ssh" => {
+            "6" | "ssh" => {
                 println!();
                 ssh_setup::run_ssh_setup(false, false, None);
             }
-            "8" | "autolock" => {
+            "7" | "autolock" => {
                 println!();
                 handle_autolock(None);
+            }
+            "gui" | "g" | "settings" => {
+                println!();
+                gui::print_deprecation_notice();
             }
             "q" | "quit" | "exit" => {
                 println!("Goodbye!");
@@ -303,10 +293,11 @@ Icon=io.github.mzia.PulsarKey\n\
 Terminal=false\n\
 Type=Application\n\
 Categories=COSMIC;Utility;Security;\n\
-X-CosmicApplet=true\n";
+X-CosmicApplet=true\n\
+NoDisplay=true\n";
 
-    let autostart_file = autostart_dir.join("io.github.mzia.PulsarKey.desktop");
-    let app_file = apps_dir.join("io.github.mzia.PulsarKey.desktop");
+    let autostart_file = autostart_dir.join("io.github.mzia.PulsarKey.Applet.desktop");
+    let app_file = apps_dir.join("io.github.mzia.PulsarKey.Applet.desktop");
 
     let _ = fs::write(&autostart_file, desktop_content);
     let _ = fs::write(&app_file, desktop_content);

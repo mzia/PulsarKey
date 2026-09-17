@@ -1,7 +1,7 @@
 #[cfg(target_os = "linux")]
 use ksni::menu::*;
 #[cfg(target_os = "linux")]
-use ksni::{Category, MenuItem, ToolTip, Tray, TrayMethods};
+use ksni::{Category, Icon, MenuItem, ToolTip, Tray, TrayMethods};
 use std::fs;
 use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
@@ -157,6 +157,58 @@ fn check_pam(path: &str) -> String {
 }
 
 #[cfg(target_os = "linux")]
+fn render_fingerprint_pixmap(connected: bool, size: i32) -> Icon {
+    let w = size as usize;
+    let h = size as usize;
+    let mut data = vec![0u8; w * h * 4];
+
+    let (r_val, g_val, b_val) = if connected {
+        (246, 246, 246) // Bright white for dark top bar
+    } else {
+        (224, 108, 117) // Warning red/amber for disconnected
+    };
+
+    let scale = size as f32 / 24.0;
+
+    for y in 0..h {
+        let ny = y as f32 / scale;
+        for x in 0..w {
+            let nx = x as f32 / scale;
+            let offset = (y * w + x) * 4;
+
+            let cx = 11.5;
+            let cy = 12.0;
+            let dx = nx - cx;
+            let dy = (ny - cy) * 0.85;
+            let dist = (dx * dx + dy * dy).sqrt();
+
+            if dist > 10.5 || ny < 2.0 || ny > 22.0 {
+                continue;
+            }
+
+            let ridge_spacing = 2.5;
+            let phase = dist / ridge_spacing;
+            let frac = (phase - phase.round()).abs();
+
+            if frac < 0.35 {
+                let intensity = 1.0 - (frac / 0.35);
+                let alpha = ((intensity * 255.0) as u8).min(255);
+                data[offset] = alpha;
+                data[offset + 1] = r_val;
+                data[offset + 2] = g_val;
+                data[offset + 3] = b_val;
+            }
+        }
+    }
+
+    Icon {
+        width: size,
+        height: size,
+        data,
+    }
+}
+
+#[cfg(target_os = "linux")]
 impl Tray for YubiKeyApplet {
     const MENU_ON_ACTIVATE: bool = true;
 
@@ -176,14 +228,26 @@ impl Tray for YubiKeyApplet {
         if self.is_connected {
             "auth-fingerprint-symbolic".into()
         } else {
-            "security-low-symbolic".into()
+            "auth-fingerprint-disconnected-symbolic".into()
         }
+    }
+
+    fn icon_theme_path(&self) -> String {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/mzia".to_string());
+        format!("{}/.local/share/icons/hicolor", home)
+    }
+
+    fn icon_pixmap(&self) -> Vec<Icon> {
+        vec![
+            render_fingerprint_pixmap(self.is_connected, 24),
+            render_fingerprint_pixmap(self.is_connected, 32),
+        ]
     }
 
     fn tool_tip(&self) -> ToolTip {
         ToolTip {
             icon_name: self.icon_name(),
-            icon_pixmap: Vec::new(),
+            icon_pixmap: self.icon_pixmap(),
             title: "PulsarKey FIDO2 Security".into(),
             description: format!(
                 "Device: {}\nLockscreen: {}\nSudo: {}\nPolkit GUI: {}\nAuto-Lock: {}",
@@ -205,15 +269,6 @@ impl Tray for YubiKeyApplet {
             StandardItem {
                 label: device_label,
                 enabled: false,
-                ..Default::default()
-            }
-            .into(),
-            // Action: Open Native Settings GUI
-            StandardItem {
-                label: "⚙️ Open PulsarKey Settings...".into(),
-                activate: Box::new(|_| {
-                    let _ = Command::new("pulsarkey-settings").spawn();
-                }),
                 ..Default::default()
             }
             .into(),
@@ -466,19 +521,27 @@ fn acquire_single_instance_lock() -> Option<fs::File> {
         .unwrap_or_else(|_| format!("/tmp/user-{}", unsafe { libc::getuid() }));
     let _ = fs::create_dir_all(&runtime_dir);
     let lock_path = PathBuf::from(runtime_dir).join("pulsarkey-applet.lock");
+    acquire_single_instance_lock_at(&lock_path)
+}
 
-    let file = fs::OpenOptions::new()
+fn acquire_single_instance_lock_at(lock_path: &std::path::Path) -> Option<fs::File> {
+    use std::io::Write;
+
+    let mut file = fs::OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
-        .open(&lock_path)
+        .open(lock_path)
         .ok()?;
 
     let res = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if res != 0 {
         return None;
     }
+
+    let _ = file.set_len(0);
+    let _ = writeln!(file, "{}", std::process::id());
 
     Some(file)
 }
@@ -534,15 +597,20 @@ mod tests {
 
     #[test]
     fn test_single_instance_lock() {
-        let lock1 = acquire_single_instance_lock();
+        let test_lock_path = std::env::temp_dir().join(format!("pulsarkey-test-lock-{}.lock", std::process::id()));
+        let _ = fs::remove_file(&test_lock_path);
+
+        let lock1 = acquire_single_instance_lock_at(&test_lock_path);
         assert!(lock1.is_some(), "First lock acquisition should succeed");
 
-        let lock2 = acquire_single_instance_lock();
+        let lock2 = acquire_single_instance_lock_at(&test_lock_path);
         assert!(lock2.is_none(), "Second concurrent lock acquisition must fail");
 
         drop(lock1);
 
-        let lock3 = acquire_single_instance_lock();
+        let lock3 = acquire_single_instance_lock_at(&test_lock_path);
         assert!(lock3.is_some(), "Lock acquisition should succeed after drop");
+
+        let _ = fs::remove_file(&test_lock_path);
     }
 }

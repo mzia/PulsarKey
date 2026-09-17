@@ -16,6 +16,7 @@ mkdir -p "${PKG_DIR}/DEBIAN" \
          "${PKG_DIR}/usr/bin" \
          "${PKG_DIR}/usr/share/applications" \
          "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps" \
+         "${PKG_DIR}/usr/share/icons/hicolor/scalable/status" \
          "${PKG_DIR}/usr/share/metainfo" \
          "${PKG_DIR}/usr/lib/systemd/user" \
          "${PKG_DIR}/etc/xdg/autostart"
@@ -30,6 +31,8 @@ chmod 755 "${PKG_DIR}/usr/bin/pulsarkey-settings"
 # Icons
 cp packaging/cosmic-fido2.svg "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps/io.github.mzia.PulsarKey.svg"
 ln -sf io.github.mzia.PulsarKey.svg "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps/com.system76.cosmic-fido2.svg"
+cp packaging/icons/auth-fingerprint-symbolic.svg "${PKG_DIR}/usr/share/icons/hicolor/scalable/status/auth-fingerprint-symbolic.svg"
+cp packaging/icons/auth-fingerprint-disconnected-symbolic.svg "${PKG_DIR}/usr/share/icons/hicolor/scalable/status/auth-fingerprint-disconnected-symbolic.svg"
 
 # Desktop entries
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.desktop"
@@ -46,19 +49,6 @@ Keywords=pulsar;yubikey;fido2;u2f;security;biometric;cosmic;pam;greeter;
 StartupNotify=true
 EOF
 
-cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.Settings.desktop"
-[Desktop Entry]
-Name=PulsarKey Settings
-GenericName=Security & Hardware Control Panel
-Comment=COSMIC Native Settings Control Panel for YubiKey FIDO2 & Biometrics
-Exec=/usr/bin/pulsarkey-settings
-Icon=io.github.mzia.PulsarKey
-Terminal=false
-Type=Application
-Categories=Settings;System;Security;Utility;COSMIC;
-Keywords=pulsar;yubikey;fido2;u2f;security;biometric;cosmic;settings;profiles;rescue;
-StartupNotify=true
-EOF
 
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.Applet.desktop"
 [Desktop Entry]
