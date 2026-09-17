@@ -3,7 +3,7 @@
 PulsarKey brings unified hardware-backed FIDO2 and biometric security (YubiKey Bio, YubiKey 5 Series, Security Key NFC) to macOS (macOS 12 Monterey or later).
 
 It provides a single unified experience across both **Pop!_OS Linux** and **macOS Darwin**, featuring:
-- **Native GUI Settings App:** Built with cross-platform Rust + Iced, running accelerated on Apple Metal via `wgpu`.
+- **Unified Security CLI Suite:** Instant dashboard, on-key biometric & PIN management, security strictness profiles, offline paper keys, and SSH setup with zero GUI overhead.
 - **System PAM Integration:** Protects `sudo`, lockscreen (`/etc/pam.d/screensaver`), and elevation prompts (`/etc/pam.d/authorization`).
 - **Presence Sentinel Daemon:** Monitors USB insertion and removal via `IOUSB`/`ioreg`, instantly locking the Mac screen when your security token is pulled.
 - **Emergency Paper Key Suite:** Generate offline recovery codes and emergency unlock documentation.
@@ -36,9 +36,8 @@ cd PulsarKey
 
 ### Outputs generated:
 1. **`dist/macos/PulsarKey.app`**: Complete macOS Application Bundle.
-2. **`dist/PulsarKey-1.4.0.dmg`**: Drag-and-drop disk image installer (when built on macOS).
-3. **`dist/PulsarKey-1.4.0.pkg`**: Standard macOS package installer (via `pkgbuild`).
-4. **`dist/PulsarKey-macOS-1.4.0.tar.gz`**: Portable release archive.
+2. **`dist/PulsarKey-1.4.1.dmg`**: Drag-and-drop disk image installer (when built on macOS).
+3. **`dist/PulsarKey-1.4.1.pkg`**: Standard macOS package installer (via `pkgbuild`).
 
 ---
 
@@ -54,7 +53,7 @@ This installs `PulsarKey.app` to `/Applications` and creates symlinks for CLI co
 ```bash
 pulsarkey status
 pulsarkey setup
-pulsarkey-settings
+pulsarkey applet
 ```
 
 ---
@@ -77,7 +76,7 @@ PulsarKey handles atomic file updates with automatic `.pulsarkey.bak` backup cre
 
 On macOS, PulsarKey detects token presence via native IOKit USB registries (`ioreg`). When the token is unplugged:
 1. A native macOS notification is sent via AppleScript.
-2. The session is immediately locked using `pmset displaysleepnow` or `<Ctrl>+<Cmd>+Q`.
+2. The session is immediately locked via native macOS security framework (`SACLockScreenImmediate`) or `pmset displaysleepnow`.
 3. An audit record is logged to `~/.config/pulsarkey/audit.log`.
 
 To run the Sentinel monitor in the background on macOS:

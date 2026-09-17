@@ -33,8 +33,8 @@ cp target/release/pulsarkey-settings "${APP_BUNDLE}/Contents/MacOS/pulsarkey-set
 chmod +x "${APP_BUNDLE}/Contents/MacOS/pulsarkey"
 chmod +x "${APP_BUNDLE}/Contents/MacOS/pulsarkey-settings"
 
-# Copy Info.plist with version substitution
-sed "s/<string>1.4.0<\/string>/<string>${VERSION}<\/string>/g" packaging/macos/Info.plist > "${APP_BUNDLE}/Contents/Info.plist"
+# Copy Info.plist with dynamic version substitution
+sed -E "s/<string>[0-9]+\.[0-9]+\.[0-9]+<\/string>/<string>${VERSION}<\/string>/g" packaging/macos/Info.plist > "${APP_BUNDLE}/Contents/Info.plist"
 
 # Copy icon if available
 if [ -f "packaging/cosmic-fido2.svg" ]; then
