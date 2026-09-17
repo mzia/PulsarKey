@@ -1,7 +1,7 @@
 #[cfg(target_os = "linux")]
 use ksni::menu::*;
 #[cfg(target_os = "linux")]
-use ksni::{Category, MenuItem, ToolTip, Tray, TrayMethods};
+use ksni::{Category, Icon, MenuItem, ToolTip, Tray, TrayMethods};
 use std::fs;
 use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
@@ -157,6 +157,58 @@ fn check_pam(path: &str) -> String {
 }
 
 #[cfg(target_os = "linux")]
+fn render_fingerprint_pixmap(connected: bool, size: i32) -> Icon {
+    let w = size as usize;
+    let h = size as usize;
+    let mut data = vec![0u8; w * h * 4];
+
+    let (r_val, g_val, b_val) = if connected {
+        (246, 246, 246) // Bright white for dark top bar
+    } else {
+        (224, 108, 117) // Warning red/amber for disconnected
+    };
+
+    let scale = size as f32 / 24.0;
+
+    for y in 0..h {
+        let ny = y as f32 / scale;
+        for x in 0..w {
+            let nx = x as f32 / scale;
+            let offset = (y * w + x) * 4;
+
+            let cx = 11.5;
+            let cy = 12.0;
+            let dx = nx - cx;
+            let dy = (ny - cy) * 0.85;
+            let dist = (dx * dx + dy * dy).sqrt();
+
+            if dist > 10.5 || ny < 2.0 || ny > 22.0 {
+                continue;
+            }
+
+            let ridge_spacing = 2.5;
+            let phase = dist / ridge_spacing;
+            let frac = (phase - phase.round()).abs();
+
+            if frac < 0.35 {
+                let intensity = 1.0 - (frac / 0.35);
+                let alpha = ((intensity * 255.0) as u8).min(255);
+                data[offset] = alpha;
+                data[offset + 1] = r_val;
+                data[offset + 2] = g_val;
+                data[offset + 3] = b_val;
+            }
+        }
+    }
+
+    Icon {
+        width: size,
+        height: size,
+        data,
+    }
+}
+
+#[cfg(target_os = "linux")]
 impl Tray for YubiKeyApplet {
     const MENU_ON_ACTIVATE: bool = true;
 
@@ -174,16 +226,28 @@ impl Tray for YubiKeyApplet {
 
     fn icon_name(&self) -> String {
         if self.is_connected {
-            "security-high-symbolic".into()
+            "auth-fingerprint-symbolic".into()
         } else {
-            "security-low-symbolic".into()
+            "auth-fingerprint-disconnected-symbolic".into()
         }
+    }
+
+    fn icon_theme_path(&self) -> String {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/mzia".to_string());
+        format!("{}/.local/share/icons/hicolor", home)
+    }
+
+    fn icon_pixmap(&self) -> Vec<Icon> {
+        vec![
+            render_fingerprint_pixmap(self.is_connected, 24),
+            render_fingerprint_pixmap(self.is_connected, 32),
+        ]
     }
 
     fn tool_tip(&self) -> ToolTip {
         ToolTip {
             icon_name: self.icon_name(),
-            icon_pixmap: Vec::new(),
+            icon_pixmap: self.icon_pixmap(),
             title: "PulsarKey FIDO2 Security".into(),
             description: format!(
                 "Device: {}\nLockscreen: {}\nSudo: {}\nPolkit GUI: {}\nAuto-Lock: {}",
@@ -327,7 +391,7 @@ impl Tray for YubiKeyApplet {
                         let _ = Command::new("notify-send")
                             .args([
                                 "-i",
-                                "security-high-symbolic",
+                                "auth-fingerprint-symbolic",
                                 "YubiKey Biometric Test",
                                 "Please scan your fingerprint on the YubiKey...",
                             ])
@@ -339,7 +403,7 @@ impl Tray for YubiKeyApplet {
                                 let _ = Command::new("notify-send")
                                     .args([
                                         "-i",
-                                        "security-high-symbolic",
+                                        "auth-fingerprint-symbolic",
                                         "YubiKey Bio",
                                         "✅ Fingerprint verified successfully!",
                                     ])
