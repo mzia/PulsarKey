@@ -46,20 +46,6 @@ Keywords=pulsar;yubikey;fido2;u2f;security;biometric;cosmic;pam;greeter;
 StartupNotify=true
 EOF
 
-cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.Settings.desktop"
-[Desktop Entry]
-Name=PulsarKey Settings
-GenericName=Security & Hardware Control Panel
-Comment=COSMIC Native Settings Control Panel for YubiKey FIDO2 & Biometrics
-Exec=/usr/bin/pulsarkey-settings
-Icon=io.github.mzia.PulsarKey
-Terminal=false
-Type=Application
-Categories=Settings;System;Security;Utility;COSMIC;
-Keywords=pulsar;yubikey;fido2;u2f;security;biometric;cosmic;settings;profiles;rescue;
-StartupNotify=true
-NoDisplay=true
-EOF
 
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.Applet.desktop"
 [Desktop Entry]

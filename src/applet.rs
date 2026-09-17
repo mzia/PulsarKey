@@ -208,15 +208,6 @@ impl Tray for YubiKeyApplet {
                 ..Default::default()
             }
             .into(),
-            // Action: Open Native Settings GUI
-            StandardItem {
-                label: "⚙️ Open PulsarKey Settings...".into(),
-                activate: Box::new(|_| {
-                    let _ = Command::new("pulsarkey-settings").spawn();
-                }),
-                ..Default::default()
-            }
-            .into(),
             MenuItem::Separator,
             // Configuration summary
             StandardItem {
