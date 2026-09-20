@@ -286,14 +286,16 @@ fn install_applet_autostart() {
     let _ = fs::create_dir_all(&apps_dir);
 
     let desktop_content = "[Desktop Entry]\n\
-Name=PulsarKey Security Applet\n\
+Name=PulsarKey\n\
 Comment=COSMIC Panel Status Applet for YubiKey FIDO2\n\
 Exec=/usr/bin/pulsarkey applet\n\
-Icon=io.github.mzia.PulsarKey\n\
+Icon=auth-fingerprint-symbolic\n\
 Terminal=false\n\
 Type=Application\n\
 Categories=COSMIC;Utility;Security;\n\
+Keywords=pulsar;pulsarkey;fido2;yubikey;fingerprint;biometric;security;u2f;panel;applet;\n\
 X-CosmicApplet=true\n\
+X-GNOME-Autostart-enabled=true\n\
 NoDisplay=true\n";
 
     let autostart_file = autostart_dir.join("io.github.mzia.PulsarKey.Applet.desktop");

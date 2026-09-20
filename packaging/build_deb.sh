@@ -52,13 +52,14 @@ EOF
 
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.Applet.desktop"
 [Desktop Entry]
-Name=PulsarKey Security Applet
+Name=PulsarKey
 Comment=COSMIC Panel Status Applet for YubiKey FIDO2
 Exec=/usr/bin/pulsarkey applet
-Icon=io.github.mzia.PulsarKey
+Icon=auth-fingerprint-symbolic
 Terminal=false
 Type=Application
 Categories=COSMIC;Utility;Security;
+Keywords=pulsar;pulsarkey;fido2;yubikey;fingerprint;biometric;security;u2f;panel;applet;
 X-CosmicApplet=true
 X-GNOME-Autostart-enabled=true
 NoDisplay=true
