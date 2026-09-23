@@ -7,7 +7,7 @@
 [![Release](https://img.shields.io/github/v/release/mzia/PulsarKey?style=flat-square)](https://github.com/mzia/PulsarKey/releases)
 
 > **Hardware-backed FIDO2 & Biometric Security Suite for Pop!_OS COSMIC & macOS**  
-> *Instant YubiKey Bio unlocking, passwordless sudo, Presence Sentinel auto-lock, and native desktop settings.*
+> *Universal FIDO2 support (YubiKey, Nitrokey, SoloKeys, Feitian, Titan), interactive TUI dashboard, passwordless sudo, Presence Sentinel auto-lock, and native COSMIC panel applet.*
 
 ---
 
@@ -37,14 +37,14 @@ Download your preferred installer from the [Latest Release](https://github.com/m
 
 ### 2. Run Guided Setup
 
-Insert your YubiKey and run:
+Insert your YubiKey or FIDO2 key and run:
 ```bash
 sudo pulsarkey setup
 ```
 
 The wizard will:
 1. Detect your hardware and install required PAM libraries automatically.
-2. Prompt you to touch or scan your fingerprint on your YubiKey.
+2. Prompt you to touch or scan your fingerprint on your security key.
 3. Optionally pair a secondary backup key.
 4. Safely configure `sudo`, lockscreen, and administrative elevation.
 
@@ -52,9 +52,10 @@ The wizard will:
 
 ### 3. Launch PulsarKey or Panel Applet
 
-- **Interactive Security Dashboard**:
+- **Interactive TUI Dashboard**:
   ```bash
-  pulsarkey           # Launches interactive terminal control suite
+  pulsarkey           # Launches full-screen interactive Ratatui security dashboard
+  pulsarkey tui       # Direct TUI launch (or use -m / --menu for classic text menu)
   pulsarkey status    # Direct summary of security profile, PAM health, & keys
   ```
 - **Top Bar Panel Applet** (COSMIC Linux):
@@ -184,7 +185,8 @@ PulsarKey guarantees you **never get locked out** if your hardware keys are lost
 
 | Command | Privileges | Description |
 | :--- | :--- | :--- |
-| `pulsarkey` | User | Launches interactive Security Control Center dashboard |
+| `pulsarkey` / `pulsarkey tui` | User | Launches full-screen interactive Ratatui TUI dashboard |
+| `pulsarkey -m` / `--menu` | User | Launches classic text-based interactive menu |
 | `pulsarkey status` | User | Displays comprehensive security status and hardware health |
 | `pulsarkey applet [--install-autostart]` | User | Runs COSMIC panel applet (Linux) or Sentinel daemon (macOS) |
 | `sudo pulsarkey setup` | Root | Guided enrollment for primary & backup keys and PAM setup |
@@ -221,9 +223,12 @@ PulsarKey/
 ├── Cargo.toml                                 # Rust build manifest (pulsarkey, cosmic-fido2, pulsarkey-settings)
 ├── src/
 │   ├── lib.rs                                 # Core library & shared module declarations
-│   ├── main.rs                                # CLI entry point (setup, uninstall, status, rescue, bio)
+│   ├── main.rs                                # CLI entry point (setup, uninstall, status, rescue, bio, tui)
+│   ├── cosmic_fido2_main.rs                   # Dedicated compatibility entry point for cosmic-fido2
 │   ├── gui_main.rs                            # Dedicated binary entry point for pulsarkey-settings (deprecation stub)
 │   ├── gui.rs                                 # Deprecation notice stubs (replaces legacy GUI)
+│   ├── hardware.rs                            # Universal FIDO2 hardware abstraction (Yubico, Nitrokey, Solo, Titan)
+│   ├── tui.rs                                 # Modern full-screen interactive Ratatui TUI dashboard
 │   ├── platform/                              # Cross-platform abstractions (Linux / macOS PAM, locking, notifications)
 │   │   └── mod.rs
 │   ├── rescue.rs                              # Emergency paper recovery tokens & offline rescue runbook

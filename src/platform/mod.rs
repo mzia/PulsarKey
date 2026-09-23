@@ -114,52 +114,8 @@ pub fn launch_in_terminal(cmd: &str) {
 }
 
 pub fn check_yubikey_usb_connected() -> (bool, String) {
-    #[cfg(target_os = "macos")]
-    {
-        // On macOS: Query system_profiler or ioreg for Vendor ID 0x1050 (Yubico)
-        let output = Command::new("ioreg")
-            .args(["-p", "IOUSB", "-l"])
-            .output();
-
-        if let Ok(out) = output {
-            let s = String::from_utf8_lossy(&out.stdout);
-            if s.contains("idVendor = 4176") || s.contains("1050") || s.contains("YubiKey") {
-                // Determine model name
-                let name = if s.contains("Bio") {
-                    "YubiKey Bio (macOS)".to_string()
-                } else {
-                    "YubiKey FIDO2 (macOS)".to_string()
-                };
-                return (true, name);
-            }
-        }
-
-        (false, "No YubiKey Detected".to_string())
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        use std::fs;
-        use std::path::Path;
-
-        let usb_devices = Path::new("/sys/bus/usb/devices");
-        if let Ok(entries) = fs::read_dir(usb_devices) {
-            for entry in entries.flatten() {
-                let vendor_path = entry.path().join("idVendor");
-                if let Ok(vendor) = fs::read_to_string(vendor_path) {
-                    if vendor.trim().eq_ignore_ascii_case("1050") {
-                        let product_path = entry.path().join("product");
-                        let product_name = fs::read_to_string(product_path)
-                            .ok()
-                            .map(|s| s.trim().to_string())
-                            .unwrap_or_else(|| "YubiKey FIDO2".to_string());
-                        return (true, product_name);
-                    }
-                }
-            }
-        }
-        (false, "No YubiKey Detected".to_string())
-    }
+    let t = crate::hardware::detect_fido_device();
+    (t.is_connected, t.product_name)
 }
 
 pub fn run_elevated(cmd: &str) -> std::io::Result<std::process::ExitStatus> {

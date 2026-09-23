@@ -24,6 +24,10 @@ struct Cli {
     #[arg(short = 'g', long)]
     gui: bool,
 
+    /// Force classic text menu instead of modern TUI dashboard
+    #[arg(short = 'm', long)]
+    menu: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -110,6 +114,10 @@ enum Commands {
         #[arg(value_name = "ARG")]
         arg: Option<String>,
     },
+    /// Launch the interactive TUI security dashboard
+    Tui,
+    /// Launch the interactive TUI security dashboard (alias)
+    Dashboard,
 }
 
 
@@ -175,9 +183,20 @@ fn main() {
         Some(Commands::Rescue { action, arg }) => {
             rescue::handle_rescue_cli(action, arg);
         }
-        None => {
-            if std::io::stdin().is_terminal() || std::io::stdout().is_terminal() {
+        Some(Commands::Tui) | Some(Commands::Dashboard) => {
+            if let Err(e) = tui::run_tui() {
+                eprintln!("Failed to launch TUI: {}. Falling back to CLI menu.", e);
                 run_interactive_selection();
+            }
+        }
+        None => {
+            if cli.menu {
+                run_interactive_selection();
+            } else if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+                if let Err(e) = tui::run_tui() {
+                    eprintln!("Failed to launch TUI: {}. Falling back to CLI menu.", e);
+                    run_interactive_selection();
+                }
             } else {
                 run_status();
             }
@@ -196,6 +215,7 @@ fn run_interactive_selection() {
     );
     println!("{}", "==================================================".cyan());
     println!("Please select a view or action:");
+    println!("  {}  🌌 Interactive TUI Dashboard (Full Screen)", "[t]".bold().cyan());
     println!("  {}  📊 View Security Status Dashboard (Default)", "[1]".bold().green());
     println!("  {}  🛡️  Security Strictness Profiles", "[2]".bold().green());
     println!("  {}  🧬 On-Key Biometrics & PIN Manager", "[3]".bold().green());
@@ -205,12 +225,15 @@ fn run_interactive_selection() {
     println!("  {}  🛡️  Presence Sentinel Auto-Lock", "[7]".bold().green());
     println!("  {}  🚪 Exit", "[q]".bold().yellow());
     println!("{}", "==================================================".cyan());
-    print!("Selection [1-7, or Enter for Status]: ");
+    print!("Selection [1-7, t, or Enter for Status]: ");
     let _ = io::stdout().flush();
 
     let mut input = String::new();
     if io::stdin().read_line(&mut input).is_ok() {
         match input.trim().to_lowercase().as_str() {
+            "t" | "tui" | "dashboard" => {
+                let _ = tui::run_tui();
+            }
             "1" | "status" | "s" | "" => {
                 println!();
                 run_status();
@@ -281,20 +304,25 @@ fn install_applet_autostart() {
     let (_, user_home) = get_target_user();
     let autostart_dir = user_home.join(".config/autostart");
     let apps_dir = user_home.join(".local/share/applications");
+    let systemd_dir = user_home.join(".config/systemd/user");
 
     let _ = fs::create_dir_all(&autostart_dir);
     let _ = fs::create_dir_all(&apps_dir);
+    let _ = fs::create_dir_all(&systemd_dir);
 
     let desktop_content = "[Desktop Entry]\n\
 Name=PulsarKey\n\
-Comment=COSMIC Panel Status Applet for YubiKey FIDO2\n\
+Comment=COSMIC Panel Status Applet for FIDO2 & Biometric Security\n\
 Exec=/usr/bin/pulsarkey applet\n\
 Icon=auth-fingerprint-symbolic\n\
 Terminal=false\n\
 Type=Application\n\
 Categories=COSMIC;Utility;Security;\n\
-Keywords=pulsar;pulsarkey;fido2;yubikey;fingerprint;biometric;security;u2f;panel;applet;\n\
+Keywords=pulsar;pulsarkey;fido2;yubikey;nitrokey;solo;fingerprint;biometric;security;u2f;panel;applet;\n\
 X-CosmicApplet=true\n\
+X-CosmicShrinkable=true\n\
+X-CosmicHoverPopup=Auto\n\
+X-HostWaylandDisplay=true\n\
 X-GNOME-Autostart-enabled=true\n\
 NoDisplay=true\n";
 
@@ -303,7 +331,26 @@ NoDisplay=true\n";
 
     let _ = fs::write(&autostart_file, desktop_content);
     let _ = fs::write(&app_file, desktop_content);
-    println!("{} Installed autostart entry to {}", "✅".green(), autostart_file.display());
+
+    let service_content = "[Unit]\n\
+Description=PulsarKey FIDO2 Security Applet & Presence Sentinel\n\
+PartOf=graphical-session.target\n\
+After=graphical-session.target\n\
+\n\
+[Service]\n\
+Type=simple\n\
+ExecStart=/usr/bin/pulsarkey applet\n\
+Restart=on-failure\n\
+RestartSec=3\n\
+\n\
+[Install]\n\
+WantedBy=graphical-session.target\n";
+
+    let service_file = systemd_dir.join("pulsarkey-applet.service");
+    let _ = fs::write(&service_file, service_content);
+
+    println!("{} Installed COSMIC autostart entry to {}", "✅".green(), autostart_file.display());
+    println!("{} Installed systemd user unit to {}", "✅".green(), service_file.display());
 }
 
 /// Detects the target non-root user even when running with sudo
