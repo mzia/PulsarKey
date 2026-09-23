@@ -272,6 +272,16 @@ impl Tray for YubiKeyApplet {
                 ..Default::default()
             }
             .into(),
+            StandardItem {
+                label: "🌌 Open PulsarKey TUI Dashboard...".into(),
+                activate: Box::new(|_| {
+                    let _ = Command::new("cosmic-term")
+                        .args(["-e", "pulsarkey", "tui"])
+                        .spawn();
+                }),
+                ..Default::default()
+            }
+            .into(),
             MenuItem::Separator,
             // Configuration summary
             StandardItem {
@@ -309,6 +319,14 @@ impl Tray for YubiKeyApplet {
                 checked: self.autolock_enabled,
                 activate: Box::new(|tray: &mut YubiKeyApplet| {
                     tray.toggle_autolock();
+                }),
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: "🔒 Lock Screen Now".into(),
+                activate: Box::new(|_| {
+                    let _ = crate::platform::lock_session();
                 }),
                 ..Default::default()
             }
