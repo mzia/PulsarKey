@@ -53,7 +53,7 @@ EOF
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/io.github.mzia.PulsarKey.Applet.desktop"
 [Desktop Entry]
 Name=PulsarKey
-Comment=COSMIC Panel Status Applet for YubiKey FIDO2
+Comment=COSMIC Panel Status Applet for FIDO2 Security Keys
 Exec=/usr/bin/pulsarkey applet
 Icon=auth-fingerprint-symbolic
 Terminal=false
@@ -99,7 +99,7 @@ cat << 'EOF' > "${PKG_DIR}/usr/share/metainfo/io.github.mzia.PulsarKey.metainfo.
   <description>
     <p>
       PulsarKey is a native Rust security suite designed specifically for the Pop!_OS COSMIC desktop environment.
-      Named after celestial neutron stars that pulse across the cosmos, PulsarKey connects the rhythmic pulsing LED of your FIDO2 key (YubiKey C Bio) with zero-lag desktop lockscreen unlocking, biometric sudo authentication, and real-time top panel monitoring.
+      Named after celestial neutron stars that pulse across the cosmos, PulsarKey connects the rhythmic pulsing LED of your FIDO2 Security Key with zero-lag desktop lockscreen unlocking, biometric sudo authentication, and real-time top panel monitoring.
     </p>
     <p>Key Capabilities:</p>
     <ul>
@@ -181,7 +181,7 @@ Installed-Size: 7400
 Homepage: https://github.com/mzia/PulsarKey
 Description: Hardware-backed FIDO2 & Biometric Authentication Manager for COSMIC
  PulsarKey is a native Rust security utility providing seamless FIDO2
- and biometric (YubiKey C Bio) integration for Pop!_OS COSMIC.
+ and biometric Security Key integration for Pop!_OS COSMIC.
  .
  Features:
   * Zero-delay lockscreen unlocking with COSMIC greeter
@@ -214,7 +214,7 @@ case "$1" in
         echo " 🌌 PulsarKey installed successfully!"
         echo ""
         echo " Next steps:"
-        echo "  - To configure your YubiKey for COSMIC greeter & sudo, run:"
+        echo "  - To configure your Security Key for COSMIC greeter & sudo, run:"
         echo "      sudo pulsarkey setup"
         echo "  - To configure hardware SSH and Git commit signing, run:"
         echo "      pulsarkey ssh-setup"

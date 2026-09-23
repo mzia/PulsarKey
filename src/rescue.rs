@@ -226,7 +226,7 @@ fn format_emergency_kit_document(codes: &[String]) -> String {
     doc.push_str("⚠️  CRITICAL RECOVERY NOTICE:\n");
     doc.push_str("   Print or store this paper key in a physically secure location (e.g. safe).\n");
     doc.push_str("   Each emergency code can be used ONCE to authenticate or bypass PAM hardware\n");
-    doc.push_str("   enforcement if all physical YubiKeys are lost, damaged, or unreachable.\n");
+    doc.push_str("   enforcement if all physical Security Keys are lost, damaged, or unreachable.\n");
     doc.push_str("--------------------------------------------------------------------------------\n\n");
     doc.push_str("EMERGENCY RECOVERY TOKENS (One-Time Use):\n");
     doc.push_str("┌──────────────────────────────────────────────────────────────────────────────┐\n");
@@ -340,7 +340,7 @@ pub fn print_runbook() {
     println!("{}", "================================================================================".cyan());
     println!("{}", " 📖 PulsarKey Emergency Rescue Runbook (Pop!_OS COSMIC)".bold().cyan());
     println!("{}", "================================================================================".cyan());
-    println!("\n{}", "Scenario: What to do if all registered YubiKeys are lost, broken, or locked:".bold().yellow());
+    println!("\n{}", "Scenario: What to do if all registered Security Keys are lost, broken, or locked:".bold().yellow());
 
     println!("\n{}", "Method 1: Offline Emergency Paper Key Verification".bold());
     println!("  If you have root or console access and an unused emergency recovery code:");

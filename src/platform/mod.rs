@@ -113,9 +113,13 @@ pub fn launch_in_terminal(cmd: &str) {
     }
 }
 
-pub fn check_yubikey_usb_connected() -> (bool, String) {
+pub fn check_security_key_usb_connected() -> (bool, String) {
     let t = crate::hardware::detect_fido_device();
     (t.is_connected, t.product_name)
+}
+
+pub fn check_yubikey_usb_connected() -> (bool, String) {
+    check_security_key_usb_connected()
 }
 
 pub fn run_elevated(cmd: &str) -> std::io::Result<std::process::ExitStatus> {

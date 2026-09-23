@@ -24,25 +24,11 @@ pub fn run_ssh_setup(no_resident: bool, no_git_sign: bool, custom_path: Option<S
     // 2. Hardware Detection
     print!("🔍 Detecting security key... ");
     io::stdout().flush().unwrap();
-    let yk_info = Command::new("ykman").arg("info").output();
-    let has_key = match yk_info {
-        Ok(out) if out.status.success() => {
-            let info = String::from_utf8_lossy(&out.stdout);
-            let name = info
-                .lines()
-                .find(|l| l.starts_with("Device type:"))
-                .map(|l| l.replace("Device type:", "").trim().to_string())
-                .unwrap_or_else(|| "YubiKey Detected".to_string());
-            println!("{}", name.bold().green());
-            true
-        }
-        _ => {
-            println!("{}", "YubiKey / FIDO2 Key (Generic)".yellow());
-            false
-        }
-    };
-
-    if !has_key {
+    let dev = crate::hardware::detect_fido_device();
+    if dev.is_connected {
+        println!("{}", dev.product_name.bold().green());
+    } else {
+        println!("{}", "No Security Key Detected".yellow());
         println!("👉 Ensure your FIDO2 security key is plugged in before proceeding.");
     }
 
@@ -69,7 +55,7 @@ pub fn run_ssh_setup(no_resident: bool, no_git_sign: bool, custom_path: Option<S
         println!("\n{}", "🔐 Step 1: Generating Hardware-Backed FIDO2 SSH Key".bold());
         println!("👉 OpenSSH will prompt for your FIDO2 PIN (if set) and your biometric scan.");
         println!(
-            "👉 When the YubiKey flashes, {} on the sensor.\n",
+            "👉 When your security key flashes, {} on the sensor.\n",
             "scan your fingerprint or touch".bold().yellow()
         );
 
@@ -130,12 +116,12 @@ pub fn run_ssh_setup(no_resident: bool, no_git_sign: bool, custom_path: Option<S
 
     println!("\nNext Steps for GitHub:");
     println!("  1. Open: {}", "https://github.com/settings/keys".bold().cyan());
-    println!("  2. Click {} ➔ Title: {}", "New SSH Key".bold(), "PulsarKey YubiKey Bio".yellow());
+    println!("  2. Click {} ➔ Title: {}", "New SSH Key".bold(), "PulsarKey Hardware Key".yellow());
     println!("  3. Key Type: Choose {} (or Signing Key)", "Authentication Key".bold());
     println!("  4. Paste your key and click {}", "Add SSH Key".bold());
     println!("\nTo test SSH authentication:");
     println!("  {}", "ssh -T git@github.com".bold().cyan());
-    println!("  (Your YubiKey sensor will flash for fingerprint touch verification!)\n");
+    println!("  (Your security key sensor will flash for touch/biometric verification!)\n");
 }
 
 fn generate_key(key_path: &Path, comment: &str, use_resident: bool) -> bool {

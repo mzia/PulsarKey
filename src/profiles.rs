@@ -72,19 +72,19 @@ pub fn apply_profile(profile: SecurityProfile) -> Result<(), String> {
     // 2. Prepare PAM lines based on profile
     let (sudo_line, greeter_line, polkit_line) = match profile {
         SecurityProfile::Convenience => (
-            "auth sufficient pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your YubiKey...] nouserok",
-            "auth [success=done default=ignore] pam_u2f.so authfile=/etc/yubico/u2f_keys interactive [prompt=Press Enter to scan YubiKey...] cue [cue_prompt=Scan your fingerprint or touch your YubiKey...] nouserok",
-            "auth sufficient pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your YubiKey...] nouserok",
+            "auth sufficient pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your Security Key...] nouserok",
+            "auth [success=done default=ignore] pam_u2f.so authfile=/etc/yubico/u2f_keys interactive [prompt=Press Enter to scan Security Key...] cue [cue_prompt=Scan your fingerprint or touch your Security Key...] nouserok",
+            "auth sufficient pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your Security Key...] nouserok",
         ),
         SecurityProfile::Fortress => (
-            "auth requisite pam_unix.so nullok_secure\nauth required pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your YubiKey...]",
-            "auth required pam_unix.so nullok_secure\nauth required pam_u2f.so authfile=/etc/yubico/u2f_keys interactive [prompt=Press Enter to scan YubiKey...] cue [cue_prompt=Scan your fingerprint or touch your YubiKey...]",
-            "auth required pam_unix.so nullok_secure\nauth required pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your YubiKey...]",
+            "auth requisite pam_unix.so nullok_secure\nauth required pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your Security Key...]",
+            "auth required pam_unix.so nullok_secure\nauth required pam_u2f.so authfile=/etc/yubico/u2f_keys interactive [prompt=Press Enter to scan Security Key...] cue [cue_prompt=Scan your fingerprint or touch your Security Key...]",
+            "auth required pam_unix.so nullok_secure\nauth required pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your Security Key...]",
         ),
         SecurityProfile::Lockdown => (
-            "auth [success=done default=die] pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your YubiKey...]",
-            "auth [success=done default=die] pam_u2f.so authfile=/etc/yubico/u2f_keys interactive [prompt=Press Enter to scan YubiKey...] cue [cue_prompt=Scan your fingerprint or touch your YubiKey...]",
-            "auth [success=done default=die] pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your YubiKey...]",
+            "auth [success=done default=die] pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your Security Key...]",
+            "auth [success=done default=die] pam_u2f.so authfile=/etc/yubico/u2f_keys interactive [prompt=Press Enter to scan Security Key...] cue [cue_prompt=Scan your fingerprint or touch your Security Key...]",
+            "auth [success=done default=die] pam_u2f.so authfile=/etc/yubico/u2f_keys cue [cue_prompt=Scan your fingerprint or touch your Security Key...]",
         ),
     };
 

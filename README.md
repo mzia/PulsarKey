@@ -37,7 +37,7 @@ Download your preferred installer from the [Latest Release](https://github.com/m
 
 ### 2. Run Guided Setup
 
-Insert your YubiKey or FIDO2 key and run:
+Insert your Security Key or FIDO2 token and run:
 ```bash
 sudo pulsarkey setup
 ```
@@ -73,7 +73,7 @@ The wizard will:
 
 ### 🔒 Lockscreen Unlocking
 - **Pop!_OS COSMIC Greeter**: Press <kbd>Space</kbd> + <kbd>Enter</kbd>, then scan your fingerprint or touch your key when the sensor pulses green.
-- **macOS Screensaver**: Wake your Mac display and scan/touch your YubiKey to unlock.
+- **macOS Screensaver**: Wake your Mac display and scan/touch your Security Key to unlock.
 
 ### ⚡ Passwordless `sudo` & Elevation
 Run any administrative command or trigger a system elevation dialog (e.g. Pop!_Shop, Eddy):
@@ -83,7 +83,7 @@ sudo whoami
 Scan your fingerprint or touch your key when prompted — no password typing required!
 
 ### 🛡️ Presence Sentinel (Auto-Lock on Key Removal)
-PulsarKey continuously monitors token presence. The second you unplug your YubiKey from your computer, your desktop locks automatically.
+PulsarKey continuously monitors token presence. The second you unplug your Security Key from your computer, your desktop locks automatically.
 - **Toggle Sentinel**:
   ```bash
   pulsarkey autolock enable     # or disable / status
@@ -194,7 +194,7 @@ PulsarKey guarantees you **never get locked out** if your hardware keys are lost
 | `pulsarkey bio` | User | Interactive on-key fingerprint & PIN manager |
 | `pulsarkey autolock [on\|off\|status]` | User | Toggles Presence Sentinel auto-lock on key removal |
 | `pulsarkey ssh-setup` | User | Hardware-backed FIDO2 SSH key & Git commit signing wizard |
-| `sudo pulsarkey backup pair` | Root | Interactive wizard to pair a secondary backup YubiKey |
+| `sudo pulsarkey backup pair` | Root | Interactive wizard to pair a secondary backup Security Key |
 | `pulsarkey rescue generate` | User | Generates 8 emergency paper keys with desktop certificate |
 | `pulsarkey rescue runbook` | User | Displays offline disaster recovery runbook |
 | `sudo pulsarkey rescue usb <PATH>` | Root | Creates automated offline `pulsar-rescue.sh` on USB drive |

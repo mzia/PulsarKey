@@ -290,12 +290,12 @@ pub fn run_interactive_bio(mut cached_pin: Option<String>) {
 
     let fido_info = get_fido_info();
     if !fido_info.device_detected {
-        println!("{} No YubiKey / FIDO2 device detected. Please insert your key.", "❌ Error:".red());
+        println!("{} No Security Key detected. Please insert your key.", "❌ Error:".red());
         return;
     }
 
     println!("Hardware Status:");
-    println!("  Biometric Sensor:   {}", if fido_info.bio_supported { "Supported (YubiKey Bio)".green() } else { "Touch Only / Not Supported".yellow() });
+    println!("  Biometric Sensor:   {}", if fido_info.bio_supported { "Supported (Biometric Sensor)".green() } else { "Touch Only / Not Supported".yellow() });
     println!("  FIDO2 PIN:          {}", if fido_info.pin_set { format!("Set ({} retries remaining)", fido_info.pin_retries.unwrap_or(8)).green() } else { "Not Set".red() });
     println!("  Enrolled Prints:    {}", if fido_info.fingerprints_registered { format!("Registered ({} retries remaining)", fido_info.bio_retries.unwrap_or(3)).green() } else { "None".yellow() });
     println!("  Always Require UV:  {}", if fido_info.always_uv { "Enabled".green() } else { "Disabled".yellow() });

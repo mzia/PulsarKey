@@ -7,7 +7,8 @@ use std::process::{Command, Stdio};
 
 const MAPPING_DIR: &str = "/etc/yubico";
 const MAPPING_FILE: &str = "/etc/yubico/u2f_keys";
-const UDEV_RULE_FILE: &str = "/etc/udev/rules.d/70-yubikey-cosmic.rules";
+const UDEV_RULE_FILE: &str = "/etc/udev/rules.d/70-pulsarkey-cosmic.rules";
+const LEGACY_UDEV_RULE_FILE: &str = "/etc/udev/rules.d/70-yubikey-cosmic.rules";
 const TEMPLATE_POLKIT: &str = "/usr/lib/pam.d/polkit-1";
 
 use pulsarkey::*;
@@ -34,7 +35,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Setup and configure YubiKey FIDO2 for COSMIC greeter, sudo & polkit
+    /// Setup and configure FIDO2 Security Key for COSMIC greeter, sudo & polkit
     Setup {
         /// Force re-installation of dependencies
         #[arg(long)]
@@ -54,7 +55,7 @@ enum Commands {
         #[arg(long)]
         install_autostart: bool,
     },
-    /// View or configure Auto-Lock on YubiKey removal
+    /// View or configure Auto-Lock on Security Key removal
     Autolock {
         /// Action: "enable", "disable", or "status"
         #[arg(value_name = "ACTION")]
@@ -282,16 +283,16 @@ fn handle_autolock(action: Option<String>) {
         Some("enable") | Some("on") | Some("1") => {
             cfg.autolock = true;
             let _ = config::save_config(&cfg);
-            println!("{} Auto-Lock on YubiKey removal: {}", "🛡️".green(), "ENABLED".bold().green());
+            println!("{} Auto-Lock on Security Key removal: {}", "🛡️".green(), "ENABLED".bold().green());
         }
         Some("disable") | Some("off") | Some("0") => {
             cfg.autolock = false;
             let _ = config::save_config(&cfg);
-            println!("{} Auto-Lock on YubiKey removal: {}", "🛡️".yellow(), "DISABLED".bold().yellow());
+            println!("{} Auto-Lock on Security Key removal: {}", "🛡️".yellow(), "DISABLED".bold().yellow());
         }
         Some("status") | None => {
             let state = if cfg.autolock { "ENABLED".green() } else { "DISABLED".yellow() };
-            println!("🛡️ Auto-Lock on YubiKey removal is currently: {}", state.bold());
+            println!("🛡️ Auto-Lock on Security Key removal is currently: {}", state.bold());
             println!("To toggle: {}", "pulsarkey autolock [enable|disable]".cyan());
         }
         Some(other) => {
@@ -407,7 +408,12 @@ fn run_setup(reinstall: bool) {
 
     // 2. Hardware Udev Rules for cosmic-greeter
     println!("\n{}", "⚙️  Step 2: Configuring udev hardware rules...".bold());
-    let udev_content = "KERNEL==\"hidraw*\", ATTRS{idVendor}==\"1050\", MODE=\"0660\", GROUP=\"cosmic-greeter\"\n";
+    let udev_content = "# PulsarKey Universal FIDO2 Security Key rules for cosmic-greeter\n\
+KERNEL==\"hidraw*\", SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"1050|20a0|1209|096e|18d1|2021|2fc6\", MODE=\"0660\", GROUP=\"cosmic-greeter\"\n\
+KERNEL==\"hidraw*\", SUBSYSTEM==\"hidraw\", ENV{ID_SECURITY_TOKEN}==\"1\", MODE=\"0660\", GROUP=\"cosmic-greeter\"\n";
+    if Path::new(LEGACY_UDEV_RULE_FILE).exists() {
+        let _ = fs::remove_file(LEGACY_UDEV_RULE_FILE);
+    }
     if let Err(e) = fs::write(UDEV_RULE_FILE, udev_content) {
         eprintln!("{} Failed writing udev rules: {}", "❌".red(), e);
         std::process::exit(1);
@@ -424,9 +430,9 @@ fn run_setup(reinstall: bool) {
     }
 
     // 4. Enroll Primary Key
-    println!("\n{}", "🔑 Step 4: Primary YubiKey Enrollment".bold());
+    println!("\n{}", "🔑 Step 4: Primary Security Key Enrollment".bold());
     println!(
-        "👉 Insert your primary YubiKey and {} when the LED flashes...",
+        "👉 Insert your primary Security Key and {} when the LED flashes...",
         "scan your fingerprint or touch".bold().yellow()
     );
 
@@ -452,15 +458,15 @@ fn run_setup(reinstall: bool) {
 
     // 5. Optional Backup Key Enrollment
     let mut final_mapping = primary_key;
-    print!("\n❓ Do you have a secondary/backup YubiKey to enroll now? [y/N]: ");
+    print!("\n❓ Do you have a secondary/backup Security Key to enroll now? [y/N]: ");
     io::stdout().flush().unwrap();
     let mut resp = String::new();
     io::stdin().read_line(&mut resp).unwrap();
 
     if resp.trim().eq_ignore_ascii_case("y") {
-        println!("\n{}", "🔑 Step 5: Backup YubiKey Enrollment".bold());
+        println!("\n{}", "🔑 Step 5: Backup Security Key Enrollment".bold());
         println!(
-            "👉 Insert your BACKUP YubiKey and {} when it flashes...",
+            "👉 Insert your BACKUP Security Key and {} when it flashes...",
             "scan your fingerprint or touch".bold().yellow()
         );
 
@@ -518,7 +524,7 @@ fn run_setup(reinstall: bool) {
         MAPPING_FILE
     );
     let greeter_pam_line = format!(
-        "auth sufficient pam_u2f.so authfile={} interactive [prompt=Press Space then Enter to scan YubiKey...] cue [cue_prompt=Scan your fingerprint...] nouserok",
+        "auth sufficient pam_u2f.so authfile={} interactive [prompt=Press Space then Enter to scan Security Key...] cue [cue_prompt=Scan your fingerprint...] nouserok",
         MAPPING_FILE
     );
     let polkit_pam_line = format!(
@@ -635,7 +641,7 @@ fn run_uninstall(purge: bool) {
     let (_username, user_home) = get_target_user();
 
     println!("{}", "==================================================".yellow());
-    println!("{}", "🔄 Reverting FIDO2 YubiKey configuration...".bold().yellow());
+    println!("{}", "🔄 Reverting FIDO2 Security Key configuration...".bold().yellow());
     println!("{}", "==================================================".yellow());
 
     // 1. Remove PAM lines from Sudo, Greeter/Screensaver
@@ -690,12 +696,18 @@ fn run_uninstall(purge: bool) {
         }
     }
 
-    // 2. Remove udev rule
-    if Path::new(UDEV_RULE_FILE).exists() {
-        let _ = fs::remove_file(UDEV_RULE_FILE);
+    // 2. Remove udev rules
+    let mut udev_removed = false;
+    for udev_path in [UDEV_RULE_FILE, LEGACY_UDEV_RULE_FILE] {
+        if Path::new(udev_path).exists() {
+            let _ = fs::remove_file(udev_path);
+            println!("{} Removed udev rule: {}", "✅".green(), udev_path);
+            udev_removed = true;
+        }
+    }
+    if udev_removed {
         let _ = Command::new("udevadm").args(["control", "--reload-rules"]).status();
         let _ = Command::new("udevadm").args(["trigger"]).status();
-        println!("{} Removed udev rule: {}", "✅".green(), UDEV_RULE_FILE);
     }
 
     // 3. Remove system mapping
@@ -740,7 +752,7 @@ fn run_status() {
     println!("{}", "==================================================".cyan());
 
     // Check hardware
-    let (is_connected, hw_name) = platform::check_yubikey_usb_connected();
+    let (is_connected, hw_name) = platform::check_security_key_usb_connected();
     println!(
         "Security Hardware:       {}",
         if is_connected { hw_name.green().bold() } else { "None detected".yellow() }
@@ -758,7 +770,7 @@ fn run_status() {
     // Check udev rule (Linux)
     #[cfg(target_os = "linux")]
     {
-        let has_udev = Path::new(UDEV_RULE_FILE).exists();
+        let has_udev = Path::new(UDEV_RULE_FILE).exists() || Path::new(LEGACY_UDEV_RULE_FILE).exists();
         println!(
             "COSMIC udev rules:       {}",
             if has_udev { "Configured".green() } else { "Not found".yellow() }
@@ -836,17 +848,20 @@ fn run_status() {
         }
     );
 
-    // Check connected YubiKey
+    // Check connected Security Key
     println!("\nHardware Detection:");
-    let yk_output = Command::new("ykman").arg("info").output();
-    match yk_output {
-        Ok(out) if out.status.success() => {
-            let info = String::from_utf8_lossy(&out.stdout);
-            for line in info.lines().take(5) {
-                println!("  {}", line.dimmed());
-            }
+    let dev = crate::hardware::detect_fido_device();
+    if dev.is_connected {
+        println!("  Device:   {}", dev.product_name.green().bold());
+        println!("  Vendor:   {:?}", dev.vendor);
+        if let Some(ref serial) = dev.serial {
+            println!("  Serial:   {}", serial);
         }
-        _ => println!("  {}", "No YubiKey detected or ykman not installed.".dimmed()),
+        if let Some(ref fw) = dev.firmware {
+            println!("  Firmware: {}", fw);
+        }
+    } else {
+        println!("  {}", "No Security Key detected.".dimmed());
     }
     println!("{}", "==================================================".cyan());
 }

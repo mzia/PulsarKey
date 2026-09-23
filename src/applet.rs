@@ -11,7 +11,7 @@ use std::time::Duration;
 const MAPPING_FILE: &str = "/etc/yubico/u2f_keys";
 
 #[derive(Clone, Debug)]
-pub struct YubiKeyApplet {
+pub struct PulsarKeyApplet {
     pub device_name: String,
     pub is_connected: bool,
     pub was_connected: bool,
@@ -24,7 +24,9 @@ pub struct YubiKeyApplet {
     pub profile_name: String,
 }
 
-impl YubiKeyApplet {
+pub type YubiKeyApplet = PulsarKeyApplet;
+
+impl PulsarKeyApplet {
     pub fn new() -> Self {
         let cfg = crate::config::load_config();
         let mut applet = Self {
@@ -61,10 +63,10 @@ impl YubiKeyApplet {
 
     pub fn refresh(&mut self) {
         // 1. Cross-platform hardware detection
-        let (new_connected, hw_product_name) = crate::platform::check_yubikey_usb_connected();
+        let (new_connected, hw_product_name) = crate::platform::check_security_key_usb_connected();
 
         if new_connected {
-            if !self.was_connected || self.device_name == "No YubiKey Detected" {
+            if !self.was_connected || self.device_name == "No Security Key Detected" {
                 // Enrich with ykman info once upon insertion if available
                 let yk_name = Command::new("ykman").arg("info").output().ok().and_then(|out| {
                     if out.status.success() {
@@ -80,21 +82,21 @@ impl YubiKeyApplet {
                 self.device_name = yk_name.unwrap_or(hw_product_name);
             }
         } else {
-            self.device_name = "No YubiKey Detected".to_string();
+            self.device_name = "No Security Key Detected".to_string();
         }
 
         // Hardware audit logging
         if !self.was_connected && new_connected {
             crate::audit::log_event(
                 "HARDWARE",
-                "YubiKey Inserted",
+                "Security Key Inserted",
                 "Connected",
                 &self.device_name,
             );
         } else if self.was_connected && !new_connected {
             crate::audit::log_event(
                 "HARDWARE",
-                "YubiKey Removed",
+                "Security Key Removed",
                 "Disconnected",
                 "Key removed from USB port",
             );
@@ -102,7 +104,7 @@ impl YubiKeyApplet {
 
         // Feature 1: Presence Sentinel - Auto-Lock on key removal
         if self.was_connected && !new_connected && self.autolock_enabled {
-            println!("🚨 YubiKey removed with Auto-Lock enabled! Locking session...");
+            println!("🚨 Security Key removed with Auto-Lock enabled! Locking session...");
             crate::audit::log_event(
                 "SENTINEL",
                 "Auto-Lock Triggered",
@@ -111,7 +113,7 @@ impl YubiKeyApplet {
             );
             crate::platform::send_desktop_notification(
                 "PulsarKey Sentinel",
-                &format!("YubiKey removed — {} desktop locked.", crate::platform::get_os_display_name()),
+                &format!("Security Key removed — {} desktop locked.", crate::platform::get_os_display_name()),
                 true,
             );
             let _ = crate::platform::lock_session();
@@ -209,7 +211,7 @@ fn render_fingerprint_pixmap(connected: bool, size: i32) -> Icon {
 }
 
 #[cfg(target_os = "linux")]
-impl Tray for YubiKeyApplet {
+impl Tray for PulsarKeyApplet {
     const MENU_ON_ACTIVATE: bool = true;
 
     fn id(&self) -> String {
@@ -317,7 +319,7 @@ impl Tray for YubiKeyApplet {
             CheckmarkItem {
                 label: "🛡️ Auto-Lock on Key Removal".into(),
                 checked: self.autolock_enabled,
-                activate: Box::new(|tray: &mut YubiKeyApplet| {
+                activate: Box::new(|tray: &mut PulsarKeyApplet| {
                     tray.toggle_autolock();
                 }),
                 ..Default::default()
@@ -410,8 +412,8 @@ impl Tray for YubiKeyApplet {
                             .args([
                                 "-i",
                                 "auth-fingerprint-symbolic",
-                                "YubiKey Biometric Test",
-                                "Please scan your fingerprint on the YubiKey...",
+                                "Security Key Biometric Test",
+                                "Please scan your fingerprint or touch your Security Key...",
                             ])
                             .status();
 
@@ -422,8 +424,8 @@ impl Tray for YubiKeyApplet {
                                     .args([
                                         "-i",
                                         "auth-fingerprint-symbolic",
-                                        "YubiKey Bio",
-                                        "✅ Fingerprint verified successfully!",
+                                        "PulsarKey Biometrics",
+                                        "✅ Verification successful!",
                                     ])
                                     .status();
                             }
@@ -432,7 +434,7 @@ impl Tray for YubiKeyApplet {
                                     .args([
                                         "-i",
                                         "dialog-warning-symbolic",
-                                        "YubiKey Bio",
+                                        "PulsarKey Biometrics",
                                         "⚠️ Touch test timed out or cancelled.",
                                     ])
                                     .status();
@@ -574,10 +576,10 @@ pub async fn run_applet() {
         }
     };
 
-    let applet = YubiKeyApplet::new();
+    let applet = PulsarKeyApplet::new();
     let handle = applet.spawn().await.expect("Failed to spawn COSMIC status tray applet");
 
-    // Dynamic monitor loop: checks YubiKey presence every 2 seconds for responsive auto-lock
+    // Dynamic monitor loop: checks Security Key presence every 2 seconds for responsive auto-lock
     loop {
         tokio::time::sleep(Duration::from_secs(2)).await;
         let _ = handle
@@ -599,9 +601,9 @@ pub async fn run_applet() {
     };
 
     println!("🌌 Launching PulsarKey Hardware Sentinel Daemon for macOS...");
-    let mut applet = YubiKeyApplet::new();
+    let mut applet = PulsarKeyApplet::new();
     println!("🛡️ Presence Sentinel Auto-Lock: {}", if applet.autolock_enabled { "Enabled" } else { "Disabled" });
-    println!("Monitoring YubiKey insertions & removals in background...");
+    println!("Monitoring Security Key insertions & removals in background...");
 
     loop {
         tokio::time::sleep(Duration::from_secs(2)).await;

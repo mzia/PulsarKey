@@ -92,7 +92,7 @@ pub fn print_backup_status() {
     println!("{}", "==================================================".cyan());
 }
 
-/// Interactive wizard to pair a secondary / backup YubiKey.
+/// Interactive wizard to pair a secondary / backup Security Key.
 pub fn pair_backup_key() -> Result<(), String> {
     crate::ensure_root("backup pair");
 
@@ -103,7 +103,7 @@ pub fn pair_backup_key() -> Result<(), String> {
     println!("{}", "==================================================".cyan());
     println!("{}", "👯 PulsarKey Backup Key Pairing Wizard".bold().cyan());
     println!("{}", "==================================================".cyan());
-    println!("This wizard will enroll a secondary YubiKey/FIDO2 token as a backup key.");
+    println!("This wizard will enroll a secondary FIDO2 security key as a backup.");
     println!("If your primary key is ever lost, misplaced, or damaged, your backup");
     println!("key can instantly unlock your lockscreen, authorize sudo, and sign Polkit.");
     println!("{}", "──────────────────────────────────────────────────".blue());
@@ -115,7 +115,7 @@ pub fn pair_backup_key() -> Result<(), String> {
 
     println!("Current status: {} key(s) already registered for user '{}'.", existing_keys.len().to_string().cyan(), username.bold());
     println!("\n👉 STEP 1: Unplug your PRIMARY key (if currently plugged in).");
-    println!("👉 STEP 2: Plug in your SECONDARY / BACKUP YubiKey into a USB port.");
+    println!("👉 STEP 2: Plug in your SECONDARY / BACKUP Security Key into a USB port.");
     print!("\nPress Enter once your BACKUP key is inserted and ready...");
     io::stdout().flush().unwrap();
     let mut buf = String::new();
@@ -124,18 +124,12 @@ pub fn pair_backup_key() -> Result<(), String> {
     // Query connected token
     print!("🔍 Detecting backup key... ");
     io::stdout().flush().unwrap();
-    let yk_info = Command::new("ykman").arg("info").output();
-    let dev_name = match yk_info {
-        Ok(out) if out.status.success() => {
-            let s = String::from_utf8_lossy(&out.stdout);
-            s.lines()
-                .find(|l| l.starts_with("Device type:"))
-                .map(|l| l.replace("Device type:", "").trim().to_string())
-                .unwrap_or_else(|| "YubiKey Detected".to_string())
-        }
-        _ => "FIDO2 Security Key".to_string(),
-    };
-    println!("{}", dev_name.bold().green());
+    let dev = crate::hardware::detect_fido_device();
+    if dev.is_connected {
+        println!("{}", dev.product_name.bold().green());
+    } else {
+        println!("{}", "FIDO2 Security Key (Generic)".bold().green());
+    }
 
     // Generate U2F credential
     println!("\n👉 STEP 3: Touch or scan your fingerprint on the BACKUP key when it pulses.");
@@ -143,7 +137,7 @@ pub fn pair_backup_key() -> Result<(), String> {
     cmd.args(["-n", "-u", &username]);
 
     // If biometric, enforce verification
-    if dev_name.contains("Bio") {
+    if dev.product_name.contains("Bio") {
         cmd.args(["-N", "+presence+verification", "-P", "+presence+verification"]);
     }
 
@@ -222,7 +216,7 @@ pub fn test_backup_key() {
     println!("{}", "==================================================".cyan());
     println!("{}", "🔍 Testing Connected Security Key".bold().cyan());
     println!("{}", "==================================================".cyan());
-    println!("Touch or scan your fingerprint on your YubiKey when prompted...\n");
+    println!("Touch or scan your fingerprint on your Security Key when prompted...\n");
 
     let status = Command::new("pamu2fcfg").arg("-V").status();
     match status {

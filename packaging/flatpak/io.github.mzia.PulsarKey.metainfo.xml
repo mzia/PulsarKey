@@ -11,7 +11,7 @@
   <description>
     <p>
       PulsarKey is a native Rust security utility designed specifically for Pop!_OS COSMIC desktop.
-      Named after celestial neutron stars that rhythmically pulse across the cosmos, PulsarKey connects the pulsing LED of your FIDO2 key (such as YubiKey C Bio) with zero-lag lockscreen unlocking, biometric sudo authentication, and real-time top panel monitoring.
+      Named after celestial neutron stars that rhythmically pulse across the cosmos, PulsarKey connects the pulsing LED of your FIDO2 Security Key with zero-lag lockscreen unlocking, biometric sudo authentication, and real-time top panel monitoring.
     </p>
     <p>Key capabilities:</p>
     <ul>
