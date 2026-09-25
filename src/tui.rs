@@ -1,3 +1,4 @@
+use colored::*;
 use std::io::stdout;
 use std::time::{Duration, Instant};
 
@@ -45,6 +46,9 @@ pub struct TuiApp {
     pub status_message: Option<(String, Instant)>,
     pub should_quit: bool,
     pub tick_count: usize,
+    pub update_info: Option<crate::updater::UpdateInfo>,
+    pub show_update_modal: bool,
+    pub pending_update: Option<crate::updater::UpdateInfo>,
 }
 
 impl TuiApp {
@@ -68,7 +72,11 @@ impl TuiApp {
             status_message: None,
             should_quit: false,
             tick_count: 0,
+            update_info: crate::updater::get_cached_update_info(),
+            show_update_modal: false,
+            pending_update: None,
         };
+        crate::updater::spawn_background_update_check();
         app.refresh();
         app
     }
@@ -86,6 +94,8 @@ impl TuiApp {
         self.fido_info = crate::bio::get_fido_info();
         self.rescue_status = crate::rescue::check_recovery_status();
         self.audit_events = crate::audit::get_recorded_events(50);
+        self.update_info = crate::updater::get_cached_update_info();
+        crate::updater::spawn_background_update_check();
         self.set_status("Data refreshed.");
     }
 
@@ -143,45 +153,79 @@ pub fn run_tui() -> Result<(), Box<dyn std::error::Error>> {
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => {
-                            app.should_quit = true;
+                    if app.show_update_modal {
+                        match key.code {
+                            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
+                                app.show_update_modal = false;
+                            }
+                            KeyCode::Char('o') | KeyCode::Char('O') => {
+                                if let Some(ref info) = app.update_info {
+                                    let _ = crate::updater::open_in_browser(&info.html_url);
+                                    app.set_status("Opening release in browser...");
+                                }
+                            }
+                            KeyCode::Enter | KeyCode::Char('u') | KeyCode::Char('U') | KeyCode::Char('y') | KeyCode::Char('Y') => {
+                                if let Some(info) = app.update_info.clone() {
+                                    app.pending_update = Some(info);
+                                    app.should_quit = true;
+                                }
+                            }
+                            _ => {}
                         }
-                        KeyCode::Tab | KeyCode::Right => {
-                            app.next_tab();
-                        }
-                        KeyCode::BackTab | KeyCode::Left => {
-                            app.prev_tab();
-                        }
-                        KeyCode::Char('1') => app.current_tab = 0,
-                        KeyCode::Char('2') => app.current_tab = 1,
-                        KeyCode::Char('3') => app.current_tab = 2,
-                        KeyCode::Char('4') => app.current_tab = 3,
-                        KeyCode::Char('5') => app.current_tab = 4,
-                        KeyCode::Char('6') => app.current_tab = 5,
-                        KeyCode::Char('7') => app.current_tab = 6,
-                        KeyCode::Char('r') | KeyCode::Char('R') => {
-                            app.refresh();
-                        }
-                        KeyCode::Char('s') | KeyCode::Char('S') => {
-                            app.toggle_sentinel();
-                        }
-                        KeyCode::Char(' ') => {
-                            if app.current_tab == 4 {
+                    } else {
+                        match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => {
+                                app.should_quit = true;
+                            }
+                            KeyCode::Tab | KeyCode::Right => {
+                                app.next_tab();
+                            }
+                            KeyCode::BackTab | KeyCode::Left => {
+                                app.prev_tab();
+                            }
+                            KeyCode::Char('1') => app.current_tab = 0,
+                            KeyCode::Char('2') => app.current_tab = 1,
+                            KeyCode::Char('3') => app.current_tab = 2,
+                            KeyCode::Char('4') => app.current_tab = 3,
+                            KeyCode::Char('5') => app.current_tab = 4,
+                            KeyCode::Char('6') => app.current_tab = 5,
+                            KeyCode::Char('7') => app.current_tab = 6,
+                            KeyCode::Char('u') | KeyCode::Char('U') => {
+                                if let Some(ref info) = app.update_info {
+                                    if info.is_update_available {
+                                        app.show_update_modal = true;
+                                    } else {
+                                        app.set_status(&format!("PulsarKey v{} is up to date.", info.current_version));
+                                    }
+                                } else {
+                                    app.set_status("Checking for updates in background...");
+                                    crate::updater::spawn_background_update_check();
+                                    app.update_info = crate::updater::get_cached_update_info();
+                                }
+                            }
+                            KeyCode::Char('r') | KeyCode::Char('R') => {
+                                app.refresh();
+                            }
+                            KeyCode::Char('s') | KeyCode::Char('S') => {
                                 app.toggle_sentinel();
                             }
-                        }
-                        KeyCode::Up => {
-                            if app.current_tab == 6 && app.audit_scroll > 0 {
-                                app.audit_scroll -= 1;
+                            KeyCode::Char(' ') => {
+                                if app.current_tab == 4 {
+                                    app.toggle_sentinel();
+                                }
                             }
-                        }
-                        KeyCode::Down => {
-                            if app.current_tab == 6 && app.audit_scroll + 10 < app.audit_events.len() {
-                                app.audit_scroll += 1;
+                            KeyCode::Up => {
+                                if app.current_tab == 6 && app.audit_scroll > 0 {
+                                    app.audit_scroll -= 1;
+                                }
                             }
+                            KeyCode::Down => {
+                                if app.current_tab == 6 && app.audit_scroll + 10 < app.audit_events.len() {
+                                    app.audit_scroll += 1;
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
             }
@@ -189,6 +233,9 @@ pub fn run_tui() -> Result<(), Box<dyn std::error::Error>> {
 
         if last_tick.elapsed() >= tick_rate {
             app.tick_count = app.tick_count.wrapping_add(1);
+            if app.tick_count % 80 == 0 {
+                app.update_info = crate::updater::get_cached_update_info();
+            }
             last_tick = Instant::now();
         }
 
@@ -200,6 +247,18 @@ pub fn run_tui() -> Result<(), Box<dyn std::error::Error>> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
+
+    if let Some(ref update) = app.pending_update {
+        println!("\n{}", "==================================================".cyan());
+        println!("{}", "🚀 Upgrading PulsarKey...".bold().cyan());
+        println!("{}", "==================================================".cyan());
+        if let Err(e) = crate::updater::perform_update(update, false) {
+            eprintln!("Update failed: {}", e);
+        }
+        println!("\nPress Enter to return to terminal...");
+        let mut s = String::new();
+        let _ = std::io::stdin().read_line(&mut s);
+    }
 
     Ok(())
 }
@@ -232,6 +291,10 @@ fn ui(f: &mut Frame, app: &TuiApp) {
     }
 
     render_footer(f, app, chunks[3]);
+
+    if app.show_update_modal {
+        render_update_modal(f, app);
+    }
 }
 
 fn render_header(f: &mut Frame, app: &TuiApp, area: Rect) {
@@ -258,9 +321,9 @@ fn render_header(f: &mut Frame, app: &TuiApp, area: Rect) {
         ("Sentinel: OFF", Color::DarkGray)
     };
 
-    let header_line = Line::from(vec![
+    let mut header_spans = vec![
         Span::styled("🌌 PulsarKey ", Style::default().fg(Color::Cyan).bold()),
-        Span::styled("v1.5.0 ", Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("v{} ", env!("CARGO_PKG_VERSION")), Style::default().fg(Color::DarkGray)),
         Span::raw(" │ "),
         Span::styled(status_symbol, Style::default().fg(status_color).bold()),
         Span::raw(" ("),
@@ -269,7 +332,19 @@ fn render_header(f: &mut Frame, app: &TuiApp, area: Rect) {
         Span::styled(profile_badge.0, Style::default().fg(profile_badge.1).bold()),
         Span::raw(" │ "),
         Span::styled(sentinel_badge.0, Style::default().fg(sentinel_badge.1).bold()),
-    ]);
+    ];
+
+    if let Some(ref update) = app.update_info {
+        if update.is_update_available {
+            header_spans.push(Span::raw(" │ "));
+            header_spans.push(Span::styled(
+                format!("🚀 UPDATE v{} AVAILABLE [U]", update.latest_version),
+                Style::default().fg(Color::Yellow).bold(),
+            ));
+        }
+    }
+
+    let header_line = Line::from(header_spans);
 
     let block = Block::default()
         .borders(Borders::ALL)
@@ -831,7 +906,7 @@ fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
         String::new()
     };
 
-    let nav_line = Line::from(vec![
+    let mut footer_spans = vec![
         Span::styled("[Tab/←/→] ", Style::default().fg(Color::Yellow).bold()),
         Span::raw("Navigate Tabs  │ "),
         Span::styled("[1-7] ", Style::default().fg(Color::Yellow).bold()),
@@ -840,10 +915,20 @@ fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
         Span::raw("Toggle Sentinel  │ "),
         Span::styled("[R] ", Style::default().fg(Color::Yellow).bold()),
         Span::raw("Refresh  │ "),
-        Span::styled("[Q/Esc] ", Style::default().fg(Color::Yellow).bold()),
-        Span::raw("Exit  "),
-        Span::styled(status_text, Style::default().fg(Color::Green).bold()),
-    ]);
+    ];
+
+    if let Some(ref update) = app.update_info {
+        if update.is_update_available {
+            footer_spans.push(Span::styled("[U] ", Style::default().fg(Color::Yellow).bold()));
+            footer_spans.push(Span::raw("Update  │ "));
+        }
+    }
+
+    footer_spans.push(Span::styled("[Q/Esc] ", Style::default().fg(Color::Yellow).bold()));
+    footer_spans.push(Span::raw("Exit  "));
+    footer_spans.push(Span::styled(status_text, Style::default().fg(Color::Green).bold()));
+
+    let nav_line = Line::from(footer_spans);
 
     let block = Block::default()
         .borders(Borders::ALL)
@@ -855,4 +940,102 @@ fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
         .block(block);
 
     f.render_widget(paragraph, area);
+}
+
+fn render_update_modal(f: &mut Frame, app: &TuiApp) {
+    let area = f.area();
+    let popup_width = (area.width * 70 / 100).max(50).min(area.width);
+    let popup_height = (area.height * 65 / 100).max(18).min(area.height);
+    let x = (area.width.saturating_sub(popup_width)) / 2;
+    let y = (area.height.saturating_sub(popup_height)) / 2;
+    let popup_rect = Rect::new(x, y, popup_width, popup_height);
+
+    f.render_widget(ratatui::widgets::Clear, popup_rect);
+
+    let info = match app.update_info.as_ref() {
+        Some(i) => i,
+        None => return,
+    };
+
+    let block = Block::default()
+        .title(" 🚀 PulsarKey Software Update Available ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(Color::Yellow).bold());
+
+    let inner = block.inner(popup_rect);
+    f.render_widget(block, popup_rect);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(4), // Version & Status Info
+            Constraint::Min(6),    // Release Notes
+            Constraint::Length(3), // Action Controls
+        ])
+        .split(inner);
+
+    let best_asset = crate::updater::select_best_asset(&info.assets);
+    let asset_desc = match best_asset {
+        Some(a) => format!("{} ({:.1} MB)", a.name, (a.size as f64) / (1024.0 * 1024.0)),
+        None => "Source archive / Browser download".to_string(),
+    };
+
+    let top_lines = vec![
+        Line::from(vec![
+            Span::styled("Current Version: ", Style::default().bold()),
+            Span::styled(format!("v{}   ", info.current_version), Style::default().fg(Color::DarkGray)),
+            Span::styled("Latest Release: ", Style::default().bold()),
+            Span::styled(format!("v{} ", info.latest_version), Style::default().fg(Color::Green).bold()),
+            Span::styled(format!("({})", info.release_name), Style::default().fg(Color::Cyan)),
+        ]),
+        Line::from(vec![
+            Span::styled("Installer Package: ", Style::default().bold()),
+            Span::styled(asset_desc, Style::default().fg(Color::Yellow)),
+        ]),
+        Line::from(vec![
+            Span::styled("Release Page URL:  ", Style::default().bold()),
+            Span::styled(&info.html_url, Style::default().fg(Color::Cyan).underlined()),
+        ]),
+    ];
+    f.render_widget(Paragraph::new(top_lines), chunks[0]);
+
+    // Release notes block
+    let mut notes_spans = Vec::new();
+    notes_spans.push(Line::from(Span::styled("Release Highlights:", Style::default().fg(Color::Yellow).bold())));
+    for line in info.release_notes.lines().take(15) {
+        notes_spans.push(Line::from(Span::raw(format!("  {}", line))));
+    }
+    if info.release_notes.lines().count() > 15 {
+        notes_spans.push(Line::from(Span::styled("  ... (Press 'O' to read full changelog on GitHub)", Style::default().fg(Color::DarkGray))));
+    }
+
+    let notes_block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(Color::DarkGray));
+
+    let notes_para = Paragraph::new(notes_spans)
+        .block(notes_block)
+        .wrap(Wrap { trim: true });
+    f.render_widget(notes_para, chunks[1]);
+
+    // Action button footer
+    let action_line = Line::from(vec![
+        Span::styled("[ Enter / U ] ", Style::default().fg(Color::Green).bold()),
+        Span::styled("Exit TUI & Upgrade Now   ", Style::default().bold()),
+        Span::styled("[ O ] ", Style::default().fg(Color::Cyan).bold()),
+        Span::raw("Open in Browser   "),
+        Span::styled("[ Esc / Q ] ", Style::default().fg(Color::Red).bold()),
+        Span::raw("Dismiss"),
+    ]);
+
+    let action_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(Color::DarkGray));
+
+    let action_para = Paragraph::new(action_line)
+        .block(action_block)
+        .alignment(Alignment::Center);
+    f.render_widget(action_para, chunks[2]);
 }

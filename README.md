@@ -207,6 +207,7 @@ PulsarKey guarantees you **never get locked out** if your hardware keys are lost
 | `pulsarkey rescue generate` | User | Generates 8 emergency paper keys with desktop certificate |
 | `pulsarkey rescue runbook` | User | Displays offline disaster recovery runbook |
 | `sudo pulsarkey rescue usb <PATH>` | Root | Creates automated offline `pulsar-rescue.sh` on USB drive |
+| `pulsarkey update` | User | Checks GitHub for updates and installs the latest release (.deb / .pkg / .dmg) |
 | `pulsarkey audit` | User | Formatted viewer for authentication pulses & hardware events |
 | `sudo pulsarkey uninstall` | Root | Reverts all PAM configurations back to password authentication |
 
@@ -237,6 +238,7 @@ PulsarKey/
 │   ├── gui_main.rs                            # Dedicated binary entry point for pulsarkey-settings (deprecation stub)
 │   ├── gui.rs                                 # Deprecation notice stubs (replaces legacy GUI)
 │   ├── hardware.rs                            # Universal FIDO2 hardware abstraction (Yubico, Nitrokey, Solo, Titan)
+│   ├── updater.rs                             # Self-updater & GitHub release asset fetcher / installer
 │   ├── tui.rs                                 # Modern full-screen interactive Ratatui TUI dashboard
 │   ├── platform/                              # Cross-platform abstractions (Linux / macOS PAM, locking, notifications)
 │   │   ├── mod.rs

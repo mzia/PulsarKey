@@ -22,6 +22,10 @@ pub struct PulsarKeyApplet {
     pub has_uv: bool,
     pub autolock_enabled: bool,
     pub profile_name: String,
+    pub update_available: bool,
+    pub update_version: String,
+    pub last_update_check: std::time::Instant,
+    pub notified_update: bool,
 }
 
 pub type YubiKeyApplet = PulsarKeyApplet;
@@ -40,6 +44,10 @@ impl PulsarKeyApplet {
             has_uv: false,
             autolock_enabled: cfg.autolock,
             profile_name: cfg.profile,
+            update_available: false,
+            update_version: String::new(),
+            last_update_check: std::time::Instant::now() - Duration::from_secs(3600),
+            notified_update: false,
         };
         applet.refresh();
         // Sync initial state so it doesn't fire lock on startup
@@ -139,6 +147,29 @@ impl PulsarKeyApplet {
         self.sudo_status = check_pam(crate::platform::PAM_PATHS.sudo);
         self.lockscreen_status = check_pam(crate::platform::PAM_PATHS.greeter_or_screensaver);
         self.polkit_status = check_pam(crate::platform::PAM_PATHS.elevation_service);
+
+        // 5. Software update checks (cached + background refresh)
+        if self.last_update_check.elapsed() >= Duration::from_secs(3600) {
+            crate::updater::spawn_background_update_check();
+            self.last_update_check = std::time::Instant::now();
+        }
+
+        if let Some(cached) = crate::updater::get_cached_update_info() {
+            if cached.is_update_available {
+                self.update_available = true;
+                self.update_version = cached.latest_version.clone();
+                if !self.notified_update {
+                    crate::platform::send_desktop_notification(
+                        "PulsarKey Update Available",
+                        &format!("PulsarKey v{} is ready to install.", self.update_version),
+                        false,
+                    );
+                    self.notified_update = true;
+                }
+            } else {
+                self.update_available = false;
+            }
+        }
     }
 }
 
@@ -247,18 +278,23 @@ impl Tray for PulsarKeyApplet {
     }
 
     fn tool_tip(&self) -> ToolTip {
+        let mut desc = format!(
+            "Device: {}\nLockscreen: {}\nSudo: {}\nPolkit GUI: {}\nAuto-Lock: {}",
+            self.device_name,
+            self.lockscreen_status,
+            self.sudo_status,
+            self.polkit_status,
+            if self.autolock_enabled { "Enabled" } else { "Disabled" }
+        );
+        if self.update_available {
+            desc.push_str(&format!("\n🚀 Update Available: v{}", self.update_version));
+        }
+
         ToolTip {
             icon_name: self.icon_name(),
             icon_pixmap: self.icon_pixmap(),
             title: "PulsarKey FIDO2 Security".into(),
-            description: format!(
-                "Device: {}\nLockscreen: {}\nSudo: {}\nPolkit GUI: {}\nAuto-Lock: {}",
-                self.device_name,
-                self.lockscreen_status,
-                self.sudo_status,
-                self.polkit_status,
-                if self.autolock_enabled { "Enabled" } else { "Disabled" }
-            ),
+            description: desc,
         }
     }
 
@@ -266,7 +302,23 @@ impl Tray for PulsarKeyApplet {
         let status_icon = if self.is_connected { "🟢" } else { "🔴" };
         let device_label = format!("{} {}", status_icon, self.device_name);
 
-        vec![
+        let mut items: Vec<MenuItem<Self>> = Vec::new();
+
+        if self.update_available {
+            items.push(
+                StandardItem {
+                    label: format!("🚀 Update Available: v{} (Click to Upgrade)", self.update_version),
+                    activate: Box::new(|_| {
+                        crate::platform::launch_in_terminal("pulsarkey update");
+                    }),
+                    ..Default::default()
+                }
+                .into(),
+            );
+            items.push(MenuItem::Separator);
+        }
+
+        items.push(
             // Header / Device status
             StandardItem {
                 label: device_label,
@@ -274,6 +326,9 @@ impl Tray for PulsarKeyApplet {
                 ..Default::default()
             }
             .into(),
+        );
+
+        items.extend(vec![
             StandardItem {
                 label: "🌌 Open PulsarKey TUI Dashboard...".into(),
                 activate: Box::new(|_| {
@@ -514,7 +569,9 @@ impl Tray for PulsarKeyApplet {
                 ..Default::default()
             }
             .into(),
-        ]
+        ]);
+
+        items
     }
 }
 
