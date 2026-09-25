@@ -158,15 +158,10 @@ fn main() {
         }
         Some(Commands::Applet { install_autostart }) => {
             if install_autostart {
-                #[cfg(target_os = "macos")]
-                {
-                    match platform::install_daemon_service() {
-                        Ok(msg) => println!("{} {}", "✅".green(), msg),
-                        Err(e) => eprintln!("{} Failed to install launchd service: {}", "❌".red(), e),
-                    }
+                match platform::install_daemon_service() {
+                    Ok(msg) => println!("{} {}", "✅".green(), msg),
+                    Err(e) => eprintln!("{} Failed to install daemon service: {}", "❌".red(), e),
                 }
-                #[cfg(not(target_os = "macos"))]
-                install_applet_autostart();
             }
             println!("🌌 Launching PulsarKey Security Applet...");
             tokio::runtime::Runtime::new()
@@ -336,24 +331,15 @@ fn handle_daemon_cli(action: Option<String>) {
     let act = action.unwrap_or_else(|| "status".to_string()).to_lowercase();
     match act.as_str() {
         "install" => {
-            #[cfg(target_os = "macos")]
             match platform::install_daemon_service() {
                 Ok(msg) => println!("{} {}", "✅".green(), msg),
-                Err(e) => eprintln!("{} Failed to install launchd service: {}", "❌".red(), e),
+                Err(e) => eprintln!("{} Failed to install daemon service: {}", "❌".red(), e),
             }
-            #[cfg(not(target_os = "macos"))]
-            install_applet_autostart();
         }
         "uninstall" => {
-            #[cfg(target_os = "macos")]
             match platform::uninstall_daemon_service() {
                 Ok(msg) => println!("{} {}", "✅".green(), msg),
-                Err(e) => eprintln!("{} Failed to uninstall launchd service: {}", "❌".red(), e),
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                let _ = Command::new("systemctl").args(["--user", "disable", "--now", "pulsarkey-applet.service"]).status();
-                println!("{} Disabled systemd user service.", "✅".green());
+                Err(e) => eprintln!("{} Failed to uninstall daemon service: {}", "❌".red(), e),
             }
         }
         "status" => {
@@ -371,6 +357,13 @@ fn handle_daemon_cli(action: Option<String>) {
                 if Path::new(&log_file).exists() {
                     println!("Log File:    {}", log_file);
                 }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let unit = platform::get_linux_systemd_unit_path();
+                println!("Unit:        {}", unit.display());
+                let autostart = platform::get_linux_autostart_desktop_path();
+                println!("Autostart:   {}", autostart.display());
             }
         }
         "start" => {
@@ -447,56 +440,10 @@ fn handle_touchid_cli(action: Option<String>) {
 
 #[allow(dead_code)]
 fn install_applet_autostart() {
-    let (_, user_home) = get_target_user();
-    let autostart_dir = user_home.join(".config/autostart");
-    let apps_dir = user_home.join(".local/share/applications");
-    let systemd_dir = user_home.join(".config/systemd/user");
-
-    let _ = fs::create_dir_all(&autostart_dir);
-    let _ = fs::create_dir_all(&apps_dir);
-    let _ = fs::create_dir_all(&systemd_dir);
-
-    let desktop_content = "[Desktop Entry]\n\
-Name=PulsarKey\n\
-Comment=COSMIC Panel Status Applet for FIDO2 & Biometric Security\n\
-Exec=/usr/bin/pulsarkey applet\n\
-Icon=auth-fingerprint-symbolic\n\
-Terminal=false\n\
-Type=Application\n\
-Categories=COSMIC;Utility;Security;\n\
-Keywords=pulsar;pulsarkey;fido2;yubikey;nitrokey;solo;fingerprint;biometric;security;u2f;panel;applet;\n\
-X-CosmicApplet=true\n\
-X-CosmicShrinkable=true\n\
-X-CosmicHoverPopup=Auto\n\
-X-HostWaylandDisplay=true\n\
-X-GNOME-Autostart-enabled=true\n\
-NoDisplay=true\n";
-
-    let autostart_file = autostart_dir.join("io.github.mzia.PulsarKey.Applet.desktop");
-    let app_file = apps_dir.join("io.github.mzia.PulsarKey.Applet.desktop");
-
-    let _ = fs::write(&autostart_file, desktop_content);
-    let _ = fs::write(&app_file, desktop_content);
-
-    let service_content = "[Unit]\n\
-Description=PulsarKey FIDO2 Security Applet & Presence Sentinel\n\
-PartOf=graphical-session.target\n\
-After=graphical-session.target\n\
-\n\
-[Service]\n\
-Type=simple\n\
-ExecStart=/usr/bin/pulsarkey applet\n\
-Restart=on-failure\n\
-RestartSec=3\n\
-\n\
-[Install]\n\
-WantedBy=graphical-session.target\n";
-
-    let service_file = systemd_dir.join("pulsarkey-applet.service");
-    let _ = fs::write(&service_file, service_content);
-
-    println!("{} Installed COSMIC autostart entry to {}", "✅".green(), autostart_file.display());
-    println!("{} Installed systemd user unit to {}", "✅".green(), service_file.display());
+    match platform::install_daemon_service() {
+        Ok(msg) => println!("{} {}", "✅".green(), msg),
+        Err(e) => eprintln!("{} Failed to install daemon service: {}", "❌".red(), e),
+    }
 }
 
 /// Detects the target non-root user even when running with sudo
@@ -736,6 +683,12 @@ KERNEL==\"hidraw*\", SUBSYSTEM==\"hidraw\", ENV{ID_SECURITY_TOKEN}==\"1\", MODE=
         println!("To automatically lock your Mac when you remove your Security Key, install the launchd agent:");
         println!("   {}", "pulsarkey daemon install".cyan());
     }
+    #[cfg(not(target_os = "macos"))]
+    {
+        println!("\n{}", "🛡️ Step 7: COSMIC Panel Applet & Presence Sentinel".bold());
+        println!("To launch the COSMIC top panel status applet and enable Presence Sentinel auto-lock on login:");
+        println!("   {}", "pulsarkey daemon install".cyan());
+    }
 
     println!("\n{}", "==================================================".green());
     println!("{}", "🎉 Configuration finished successfully!".bold().green());
@@ -752,6 +705,7 @@ KERNEL==\"hidraw*\", SUBSYSTEM==\"hidraw\", ENV{ID_SECURITY_TOKEN}==\"1\", MODE=
         println!("  1. Sudo CLI:             {}", "sudo -k && sudo whoami".bold().cyan());
         println!("  2. Polkit/Auth dialogs:  {}", "pkexec whoami".bold().cyan());
         println!("  3. Lockscreen:           Lock desktop and press Space then Enter.");
+        println!("  4. COSMIC Panel Applet:  {}", "pulsarkey applet".bold().cyan());
     }
 }
 
@@ -1028,10 +982,14 @@ fn run_status() {
         } else {
             println!("  Hardware Sensor:       {}", "Not Detected (Desktop Mac or Closed Lid)".dimmed());
         }
-
-        let (daemon_active, daemon_desc) = platform::get_daemon_service_status();
-        println!("  Background Sentinel:   {}", if daemon_active { daemon_desc.green().bold() } else { daemon_desc.yellow() });
     }
+
+    // Check Background Presence Sentinel Daemon / Applet
+    let (daemon_active, daemon_desc) = platform::get_daemon_service_status();
+    println!(
+        "Background Sentinel:     {}",
+        if daemon_active { daemon_desc.green().bold() } else { daemon_desc.yellow() }
+    );
 
     // Check Security Profile
     let current_profile = profiles::get_current_profile();

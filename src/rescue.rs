@@ -211,12 +211,15 @@ pub fn verify_and_consume_code(input_code: &str) -> (bool, String) {
 }
 
 fn format_emergency_kit_document(codes: &[String]) -> String {
-    let hostname = std::fs::read_to_string("/etc/hostname").unwrap_or_else(|_| "pop-os".to_string());
+    let hostname = std::fs::read_to_string("/etc/hostname")
+        .or_else(|_| Command::new("hostname").output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()))
+        .unwrap_or_else(|_| "pop-os".to_string());
     let user = std::env::var("USER").unwrap_or_else(|_| "mzia".to_string());
+    let os_name = crate::platform::get_os_display_name();
 
     let mut doc = String::new();
     doc.push_str("================================================================================\n");
-    doc.push_str("       🛡️ PULSARKEY EMERGENCY RECOVERY KIT & PAPER KEY (Pop!_OS COSMIC)        \n");
+    doc.push_str(&format!("       🛡️ PULSARKEY EMERGENCY RECOVERY KIT & PAPER KEY ({})\n", os_name));
     doc.push_str("================================================================================\n\n");
     doc.push_str(&format!("Host System:        {}\n", hostname.trim()));
     doc.push_str(&format!("Target User:        {}\n", user));

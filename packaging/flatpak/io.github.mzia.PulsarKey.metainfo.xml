@@ -47,6 +47,11 @@
     <binary>pulsarkey-settings</binary>
   </provides>
   <releases>
+    <release version="1.4.1" date="2026-09-24">
+      <description>
+        <p>Interactive full-screen TUI Security Dashboard ('pulsarkey tui'), Universal FIDO2 Hardware Vendor Detection (Yubico, Nitrokey, SoloKeys, Google Titan, Feitian, KanoKey), and Presence Sentinel background daemon service ('pulsarkey daemon install').</p>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-09-15">
       <description>
         <p>Introduces COSMIC Native Settings App ('pulsarkey-settings' / 'pulsarkey gui') with full graphical control panel and Emergency Paper Recovery Key &amp; Offline Rescue Runbook Suite ('pulsarkey rescue').</p>

@@ -68,9 +68,10 @@ pub fn lock_session() -> Result<(), String> {
     }
 }
 
-pub fn send_desktop_notification(title: &str, body: &str, _is_critical: bool) {
+pub fn send_desktop_notification(title: &str, body: &str, is_critical: bool) {
     #[cfg(target_os = "macos")]
     {
+        let _ = is_critical;
         let script = format!(
             "display notification \"{}\" with title \"{}\"",
             body.replace('\"', "\\\""),
@@ -107,9 +108,21 @@ pub fn launch_in_terminal(cmd: &str) {
 
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = Command::new("cosmic-term")
-            .args(["-e", "bash", "-c", cmd])
-            .spawn();
+        let terminals = ["cosmic-term", "gnome-terminal", "x-terminal-emulator", "konsole", "alacritty", "kitty"];
+        let mut launched = false;
+        for term in &terminals {
+            let res = match *term {
+                "gnome-terminal" => Command::new(term).args(["--", "bash", "-c", cmd]).spawn(),
+                _ => Command::new(term).args(["-e", "bash", "-c", cmd]).spawn(),
+            };
+            if res.is_ok() {
+                launched = true;
+                break;
+            }
+        }
+        if !launched {
+            eprintln!("Warning: No supported terminal emulator found to run '{}'.", cmd);
+        }
     }
 }
 
@@ -198,6 +211,31 @@ pub fn configure_touch_id_pam(enable: bool) -> Result<(), String> {
     }
 }
 
+pub fn get_user_home() -> std::path::PathBuf {
+    if let Ok(sudo_user) = std::env::var("SUDO_USER") {
+        #[cfg(target_os = "macos")]
+        { std::path::PathBuf::from(format!("/Users/{}", sudo_user)) }
+        #[cfg(not(target_os = "macos"))]
+        { std::path::PathBuf::from(format!("/home/{}", sudo_user)) }
+    } else if let Ok(home) = std::env::var("HOME") {
+        std::path::PathBuf::from(home)
+    } else {
+        let user = std::env::var("USER").unwrap_or_else(|_| "mzia".to_string());
+        #[cfg(target_os = "macos")]
+        { std::path::PathBuf::from(format!("/Users/{}", user)) }
+        #[cfg(not(target_os = "macos"))]
+        { std::path::PathBuf::from(format!("/home/{}", user)) }
+    }
+}
+
+pub fn get_linux_systemd_unit_path() -> std::path::PathBuf {
+    get_user_home().join(".config/systemd/user/pulsarkey-applet.service")
+}
+
+pub fn get_linux_autostart_desktop_path() -> std::path::PathBuf {
+    get_user_home().join(".config/autostart/io.github.mzia.PulsarKey.Applet.desktop")
+}
+
 pub fn get_launchd_plist_path() -> std::path::PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     std::path::PathBuf::from(home)
@@ -264,7 +302,79 @@ pub fn install_daemon_service() -> Result<String, String> {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        Err("launchd is only supported on macOS".to_string())
+        let user_home = get_user_home();
+        let autostart_dir = user_home.join(".config/autostart");
+        let apps_dir = user_home.join(".local/share/applications");
+        let systemd_dir = user_home.join(".config/systemd/user");
+
+        let _ = std::fs::create_dir_all(&autostart_dir);
+        let _ = std::fs::create_dir_all(&apps_dir);
+        let _ = std::fs::create_dir_all(&systemd_dir);
+
+        let desktop_content = "[Desktop Entry]\n\
+Name=PulsarKey\n\
+Comment=COSMIC Panel Status Applet for FIDO2 & Biometric Security\n\
+Exec=/usr/bin/pulsarkey applet\n\
+Icon=auth-fingerprint-symbolic\n\
+Terminal=false\n\
+Type=Application\n\
+Categories=COSMIC;Utility;Security;\n\
+Keywords=pulsar;pulsarkey;fido2;yubikey;nitrokey;solo;fingerprint;biometric;security;u2f;panel;applet;\n\
+X-CosmicApplet=true\n\
+X-CosmicShrinkable=true\n\
+X-CosmicHoverPopup=Auto\n\
+X-HostWaylandDisplay=true\n\
+X-GNOME-Autostart-enabled=true\n\
+NoDisplay=true\n";
+
+        let autostart_file = autostart_dir.join("io.github.mzia.PulsarKey.Applet.desktop");
+        let app_file = apps_dir.join("io.github.mzia.PulsarKey.Applet.desktop");
+        let _ = std::fs::write(&autostart_file, desktop_content);
+        let _ = std::fs::write(&app_file, desktop_content);
+
+        let exe_path = std::env::current_exe()
+            .unwrap_or_else(|_| std::path::PathBuf::from("/usr/bin/pulsarkey"));
+        let exe_str = exe_path.to_string_lossy();
+
+        let service_content = format!(
+"[Unit]\n\
+Description=PulsarKey FIDO2 Security Applet & Presence Sentinel\n\
+PartOf=graphical-session.target\n\
+After=graphical-session.target\n\
+\n\
+[Service]\n\
+Type=simple\n\
+ExecStart={} applet\n\
+Restart=on-failure\n\
+RestartSec=3\n\
+\n\
+[Install]\n\
+WantedBy=graphical-session.target\n",
+            exe_str
+        );
+
+        let service_file = systemd_dir.join("pulsarkey-applet.service");
+        std::fs::write(&service_file, service_content)
+            .map_err(|e| format!("Failed to write systemd service unit: {}", e))?;
+
+        let _ = Command::new("systemctl").args(["--user", "daemon-reload"]).status();
+        let status = Command::new("systemctl")
+            .args(["--user", "enable", "--now", "pulsarkey-applet.service"])
+            .status();
+
+        if let Ok(s) = status {
+            if s.success() {
+                return Ok(format!(
+                    "Installed COSMIC autostart and activated systemd user service ({})",
+                    service_file.display()
+                ));
+            }
+        }
+
+        Ok(format!(
+            "Installed COSMIC autostart and systemd service file at {}",
+            service_file.display()
+        ))
     }
 }
 
@@ -284,7 +394,28 @@ pub fn uninstall_daemon_service() -> Result<String, String> {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        Err("launchd is only supported on macOS".to_string())
+        let user_home = get_user_home();
+        let service_file = user_home.join(".config/systemd/user/pulsarkey-applet.service");
+        let autostart_file = user_home.join(".config/autostart/io.github.mzia.PulsarKey.Applet.desktop");
+        let app_file = user_home.join(".local/share/applications/io.github.mzia.PulsarKey.Applet.desktop");
+
+        let _ = Command::new("systemctl")
+            .args(["--user", "disable", "--now", "pulsarkey-applet.service"])
+            .status();
+
+        if service_file.exists() {
+            let _ = std::fs::remove_file(&service_file);
+        }
+        let _ = Command::new("systemctl").args(["--user", "daemon-reload"]).status();
+
+        if autostart_file.exists() {
+            let _ = std::fs::remove_file(&autostart_file);
+        }
+        if app_file.exists() {
+            let _ = std::fs::remove_file(&app_file);
+        }
+
+        Ok("Disabled systemd user service and removed COSMIC autostart desktop entries".to_string())
     }
 }
 
@@ -310,10 +441,16 @@ pub fn get_daemon_service_status() -> (bool, String) {
         if let Ok(out) = Command::new("systemctl").args(["--user", "is-active", "pulsarkey-applet.service"]).output() {
             let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
             if s == "active" {
-                return (true, "Active (systemd user unit)".to_string());
+                return (true, "Active (systemd user unit running)".to_string());
             }
         }
-        (false, "Inactive / Not Installed".to_string())
+        let service_file = get_linux_systemd_unit_path();
+        let autostart_file = get_linux_autostart_desktop_path();
+        if service_file.exists() || autostart_file.exists() {
+            (false, "Installed (systemd unit present but inactive)".to_string())
+        } else {
+            (false, "Not Installed (Run 'pulsarkey daemon install')".to_string())
+        }
     }
 }
 
@@ -334,7 +471,8 @@ pub fn launch_gui_bundle_app() {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = Command::new("cosmic-term").args(["-e", "pulsarkey"]).spawn();
+        let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("pulsarkey"));
+        launch_in_terminal(&format!("\"{}\"", exe.to_string_lossy()));
     }
 }
 
@@ -359,5 +497,23 @@ mod tests {
         assert!(!PAM_PATHS.elevation_service.is_empty());
         assert!(!PAM_PATHS.greeter_label.is_empty());
         assert!(!PAM_PATHS.elevation_label.is_empty());
+    }
+
+    #[test]
+    fn test_user_home_resolution() {
+        let home = get_user_home();
+        assert!(!home.to_string_lossy().is_empty());
+        #[cfg(target_os = "macos")]
+        {
+            let plist = get_launchd_plist_path();
+            assert!(plist.to_string_lossy().contains("io.github.mzia.pulsarkey.plist"));
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let unit = get_linux_systemd_unit_path();
+            assert!(unit.to_string_lossy().contains("pulsarkey-applet.service"));
+            let desktop = get_linux_autostart_desktop_path();
+            assert!(desktop.to_string_lossy().contains("io.github.mzia.PulsarKey.Applet.desktop"));
+        }
     }
 }

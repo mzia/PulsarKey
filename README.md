@@ -63,14 +63,15 @@ The wizard will:
   pulsarkey tui       # Direct TUI launch (or use -m / --menu for classic text menu)
   pulsarkey status    # Direct summary of security profile, PAM health, & keys
   ```
-- **macOS Menu Bar Companion & Background Service**:
+- **Pop!_OS COSMIC Top Panel Applet & Background Sentinel Service**:
+  ```bash
+  pulsarkey applet           # Launches native COSMIC StatusNotifierItem panel applet
+  pulsarkey daemon install   # Installs systemd user service & desktop autostart starting at login
+  ```
+- **macOS Menu Bar Companion & Background Sentinel Service**:
   ```bash
   pulsarkey applet           # Launches native Apple Menu Bar companion (PulsarKeyBar)
   pulsarkey daemon install   # Installs background launchd Sentinel service starting at login
-  ```
-- **Top Bar Panel Applet** (COSMIC Linux):
-  ```bash
-  pulsarkey applet --install-autostart
   ```
 
 ---

@@ -277,9 +277,7 @@ impl Tray for PulsarKeyApplet {
             StandardItem {
                 label: "🌌 Open PulsarKey TUI Dashboard...".into(),
                 activate: Box::new(|_| {
-                    let _ = Command::new("cosmic-term")
-                        .args(["-e", "pulsarkey", "tui"])
-                        .spawn();
+                    crate::platform::launch_in_terminal("pulsarkey tui");
                 }),
                 ..Default::default()
             }
@@ -391,9 +389,7 @@ impl Tray for PulsarKeyApplet {
                     items.push(StandardItem {
                         label: "📊 View Full Audit Log (Terminal)...".into(),
                         activate: Box::new(|_| {
-                            let _ = Command::new("cosmic-term")
-                                .args(["-e", "bash", "-c", "pulsarkey audit; echo ''; read -p 'Press Enter to close...'"])
-                                .spawn();
+                            crate::platform::launch_in_terminal("pulsarkey audit; echo ''; read -p 'Press Enter to close...'");
                         }),
                         ..Default::default()
                     }.into());
@@ -449,9 +445,7 @@ impl Tray for PulsarKeyApplet {
             StandardItem {
                 label: "🚀 Setup / Add Key (Terminal)...".into(),
                 activate: Box::new(|_| {
-                    let _ = Command::new("cosmic-term")
-                        .args(["-e", "sudo", "pulsarkey", "setup"])
-                        .spawn();
+                    crate::platform::launch_in_terminal("sudo pulsarkey setup");
                 }),
                 ..Default::default()
             }
@@ -460,9 +454,7 @@ impl Tray for PulsarKeyApplet {
             StandardItem {
                 label: "🧬 Biometric Fingerprint Manager (Terminal)...".into(),
                 activate: Box::new(|_| {
-                    let _ = Command::new("cosmic-term")
-                        .args(["-e", "pulsarkey", "bio"])
-                        .spawn();
+                    crate::platform::launch_in_terminal("pulsarkey bio");
                 }),
                 ..Default::default()
             }
@@ -471,9 +463,7 @@ impl Tray for PulsarKeyApplet {
             StandardItem {
                 label: "👯 Backup Key Assistant (Terminal)...".into(),
                 activate: Box::new(|_| {
-                    let _ = Command::new("cosmic-term")
-                        .args(["-e", "sudo", "pulsarkey", "backup"])
-                        .spawn();
+                    crate::platform::launch_in_terminal("sudo pulsarkey backup");
                 }),
                 ..Default::default()
             }
@@ -482,9 +472,7 @@ impl Tray for PulsarKeyApplet {
             StandardItem {
                 label: "🛟 Emergency Rescue Runbook (Terminal)...".into(),
                 activate: Box::new(|_| {
-                    let _ = Command::new("cosmic-term")
-                        .args(["-e", "bash", "-c", "pulsarkey rescue runbook; echo ''; read -p 'Press Enter to close...'"])
-                        .spawn();
+                    crate::platform::launch_in_terminal("pulsarkey rescue runbook; echo ''; read -p 'Press Enter to close...'");
                 }),
                 ..Default::default()
             }
@@ -493,9 +481,7 @@ impl Tray for PulsarKeyApplet {
             StandardItem {
                 label: "🔑 Hardware SSH & Git Signing (Terminal)...".into(),
                 activate: Box::new(|_| {
-                    let _ = Command::new("cosmic-term")
-                        .args(["-e", "pulsarkey", "ssh-setup"])
-                        .spawn();
+                    crate::platform::launch_in_terminal("pulsarkey ssh-setup");
                 }),
                 ..Default::default()
             }
@@ -504,9 +490,7 @@ impl Tray for PulsarKeyApplet {
             StandardItem {
                 label: "📊 View Security Status (Terminal)...".into(),
                 activate: Box::new(|_| {
-                    let _ = Command::new("cosmic-term")
-                        .args(["-e", "bash", "-c", "pulsarkey status; read -p 'Press Enter to close...'"])
-                        .spawn();
+                    crate::platform::launch_in_terminal("pulsarkey status; echo ''; read -p 'Press Enter to close...'");
                 }),
                 ..Default::default()
             }
@@ -515,7 +499,7 @@ impl Tray for PulsarKeyApplet {
             StandardItem {
                 label: "🔒 Lock Screen Now".into(),
                 activate: Box::new(|_| {
-                    let _ = Command::new("loginctl").arg("lock-session").status();
+                    let _ = crate::platform::lock_session();
                 }),
                 ..Default::default()
             }

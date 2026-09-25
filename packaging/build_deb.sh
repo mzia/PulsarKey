@@ -134,6 +134,11 @@ cat << 'EOF' > "${PKG_DIR}/usr/share/metainfo/io.github.mzia.PulsarKey.metainfo.
     <binary>pulsarkey-settings</binary>
   </provides>
   <releases>
+    <release version="1.4.1" date="2026-09-24">
+      <description>
+        <p>Interactive full-screen TUI Security Dashboard ('pulsarkey tui'), Universal FIDO2 Hardware Vendor Detection (Yubico, Nitrokey, SoloKeys, Google Titan, Feitian, KanoKey), and Presence Sentinel background daemon service ('pulsarkey daemon install').</p>
+      </description>
+    </release>
     <release version="1.4.0" date="2026-09-15">
       <description>
         <p>Introduces COSMIC Native Settings App ('pulsarkey-settings' / 'pulsarkey gui') with full graphical control panel and Emergency Paper Recovery Key &amp; Offline Rescue Runbook Suite ('pulsarkey rescue').</p>
@@ -214,13 +219,14 @@ case "$1" in
         echo " 🌌 PulsarKey installed successfully!"
         echo ""
         echo " Next steps:"
+        echo "  - To launch the interactive TUI Security Dashboard, run:"
+        echo "      pulsarkey"
         echo "  - To configure your Security Key for COSMIC greeter & sudo, run:"
         echo "      sudo pulsarkey setup"
         echo "  - To configure hardware SSH and Git commit signing, run:"
         echo "      pulsarkey ssh-setup"
-        echo "  - The COSMIC Panel Applet will launch on your next login,"
-        echo "    or start it immediately with:"
-        echo "      pulsarkey applet &"
+        echo "  - To install the COSMIC Panel Applet & Presence Sentinel daemon, run:"
+        echo "      pulsarkey daemon install"
         echo "================================================================"
     ;;
 esac
