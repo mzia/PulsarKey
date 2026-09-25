@@ -2,6 +2,7 @@ use colored::*;
 use std::fs;
 use std::path::Path;
 
+#[cfg(not(target_os = "macos"))]
 const TEMPLATE_POLKIT: &str = "/usr/lib/pam.d/polkit-1";
 const MAPPING_FILE: &str = "/etc/yubico/u2f_keys";
 

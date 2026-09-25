@@ -11,7 +11,7 @@ pub struct PamPaths {
 
 #[cfg(target_os = "macos")]
 pub const PAM_PATHS: PamPaths = PamPaths {
-    sudo: "/etc/pam.d/sudo",
+    sudo: "/etc/pam.d/sudo_local",
     greeter_or_screensaver: "/etc/pam.d/screensaver",
     elevation_service: "/etc/pam.d/authorization",
     greeter_label: "macOS Screensaver Lock",
@@ -68,7 +68,7 @@ pub fn lock_session() -> Result<(), String> {
     }
 }
 
-pub fn send_desktop_notification(title: &str, body: &str, is_critical: bool) {
+pub fn send_desktop_notification(title: &str, body: &str, _is_critical: bool) {
     #[cfg(target_os = "macos")]
     {
         let script = format!(
@@ -135,6 +135,206 @@ pub fn run_elevated(cmd: &str) -> std::io::Result<std::process::ExitStatus> {
     #[cfg(not(target_os = "macos"))]
     {
         Command::new("pkexec").args(["bash", "-c", cmd]).status()
+    }
+}
+
+pub fn is_touch_id_pam_enabled() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let p = std::path::Path::new("/etc/pam.d/sudo_local");
+        if let Ok(content) = std::fs::read_to_string(p) {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if !trimmed.starts_with('#') && trimmed.contains("pam_tid.so") {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
+pub fn configure_touch_id_pam(enable: bool) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let path = "/etc/pam.d/sudo_local";
+        let mut lines: Vec<String> = if std::path::Path::new(path).exists() {
+            std::fs::read_to_string(path)
+                .map_err(|e| format!("Failed to read {}: {}", path, e))?
+                .lines()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            vec![
+                "# sudo_local: managed by PulsarKey (survives macOS updates)".to_string(),
+            ]
+        };
+
+        // Remove any existing pam_tid.so line
+        lines.retain(|l| !l.contains("pam_tid.so"));
+
+        if enable {
+            let tid_line = "auth       sufficient     pam_tid.so";
+            if lines.is_empty() {
+                lines.push(tid_line.to_string());
+            } else {
+                lines.insert(0, tid_line.to_string());
+            }
+        }
+
+        std::fs::write(path, lines.join("\n") + "\n")
+            .map_err(|e| format!("Failed to write {}: {}", path, e))?;
+
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = enable;
+        Err("Touch ID PAM is only supported on macOS".to_string())
+    }
+}
+
+pub fn get_launchd_plist_path() -> std::path::PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    std::path::PathBuf::from(home)
+        .join("Library")
+        .join("LaunchAgents")
+        .join("io.github.mzia.pulsarkey.plist")
+}
+
+pub fn install_daemon_service() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let plist_path = get_launchd_plist_path();
+        if let Some(parent) = plist_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        let exe_path = std::env::current_exe()
+            .unwrap_or_else(|_| std::path::PathBuf::from("/usr/local/bin/pulsarkey"));
+        let exe_str = exe_path.to_string_lossy();
+
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let log_dir = format!("{}/.config/pulsarkey", home);
+        let _ = std::fs::create_dir_all(&log_dir);
+
+        let plist_content = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.github.mzia.pulsarkey</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{}</string>
+        <string>applet</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{}/daemon.log</string>
+    <key>StandardErrorPath</key>
+    <string>{}/daemon.err</string>
+</dict>
+</plist>
+"#,
+            exe_str, log_dir, log_dir
+        );
+
+        std::fs::write(&plist_path, plist_content)
+            .map_err(|e| format!("Failed to write LaunchAgent plist: {}", e))?;
+
+        let status = Command::new("launchctl")
+            .args(["load", "-w", &plist_path.to_string_lossy()])
+            .status()
+            .map_err(|e| format!("Failed to invoke launchctl load: {}", e))?;
+
+        if status.success() {
+            Ok(format!("Installed and loaded launchd agent at {}", plist_path.display()))
+        } else {
+            Err("launchctl load returned a non-zero exit code".to_string())
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("launchd is only supported on macOS".to_string())
+    }
+}
+
+pub fn uninstall_daemon_service() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let plist_path = get_launchd_plist_path();
+        if plist_path.exists() {
+            let _ = Command::new("launchctl")
+                .args(["unload", &plist_path.to_string_lossy()])
+                .status();
+            let _ = std::fs::remove_file(&plist_path);
+            Ok("Uninstalled and unloaded launchd agent".to_string())
+        } else {
+            Ok("No launchd agent plist was found to remove".to_string())
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("launchd is only supported on macOS".to_string())
+    }
+}
+
+pub fn get_daemon_service_status() -> (bool, String) {
+    #[cfg(target_os = "macos")]
+    {
+        let plist_path = get_launchd_plist_path();
+        let installed = plist_path.exists();
+        if let Ok(out) = Command::new("launchctl").arg("list").output() {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            if stdout.contains("io.github.mzia.pulsarkey") {
+                return (true, "Active (launchd loaded & running)".to_string());
+            }
+        }
+        if installed {
+            (false, "Installed (launchd loaded but idle)".to_string())
+        } else {
+            (false, "Not Installed (Run 'pulsarkey daemon install')".to_string())
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if let Ok(out) = Command::new("systemctl").args(["--user", "is-active", "pulsarkey-applet.service"]).output() {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if s == "active" {
+                return (true, "Active (systemd user unit)".to_string());
+            }
+        }
+        (false, "Inactive / Not Installed".to_string())
+    }
+}
+
+pub fn launch_gui_bundle_app() {
+    #[cfg(target_os = "macos")]
+    {
+        let exe = std::env::current_exe().unwrap_or_default();
+        let parent = exe.parent();
+        let bar_path = parent.map(|p| p.join("PulsarKeyBar")).unwrap_or_default();
+
+        if bar_path.exists() {
+            let _ = Command::new(bar_path).spawn();
+        } else {
+            let _ = Command::new(&exe).arg("applet").spawn();
+        }
+
+        launch_in_terminal(&format!("\"{}\"", exe.to_string_lossy()));
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = Command::new("cosmic-term").args(["-e", "pulsarkey"]).spawn();
     }
 }
 

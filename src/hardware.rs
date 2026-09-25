@@ -10,6 +10,7 @@ pub enum FidoVendor {
     GoogleTitan,
     KanoKey,
     Framework,
+    AppleTouchId,
     Generic,
     Unknown,
 }
@@ -24,6 +25,7 @@ impl FidoVendor {
             Self::GoogleTitan => "Google Titan",
             Self::KanoKey => "KanoKey",
             Self::Framework => "Framework",
+            Self::AppleTouchId => "Apple Touch ID (Built-in WebAuthn)",
             Self::Generic => "Generic FIDO2",
             Self::Unknown => "Unknown",
         }
@@ -38,6 +40,7 @@ impl FidoVendor {
             Self::GoogleTitan => "🌐",
             Self::KanoKey => "🗝️",
             Self::Framework => "💻",
+            Self::AppleTouchId => "🍏",
             Self::Generic | Self::Unknown => "🔒",
         }
     }
@@ -68,6 +71,25 @@ impl FidoVendor {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TouchIdTelemetry {
+    pub is_supported: bool,
+    pub is_enrolled: bool,
+    pub pam_tid_available: bool,
+    pub sudo_local_configured: bool,
+}
+
+impl Default for TouchIdTelemetry {
+    fn default() -> Self {
+        Self {
+            is_supported: false,
+            is_enrolled: false,
+            pam_tid_available: false,
+            sudo_local_configured: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FidoDeviceTelemetry {
     pub is_connected: bool,
@@ -84,6 +106,7 @@ pub struct FidoDeviceTelemetry {
     pub protocols: Vec<String>,
     pub is_yubikey: bool,
     pub hid_path: Option<String>,
+    pub touch_id: TouchIdTelemetry,
 }
 
 impl Default for FidoDeviceTelemetry {
@@ -103,6 +126,7 @@ impl Default for FidoDeviceTelemetry {
             protocols: Vec::new(),
             is_yubikey: false,
             hid_path: None,
+            touch_id: TouchIdTelemetry::default(),
         }
     }
 }
@@ -208,12 +232,54 @@ fn detect_fido_device_linux() -> FidoDeviceTelemetry {
         enrich_with_fido2_tools(&mut telemetry);
     }
 
+    telemetry.touch_id = detect_touch_id();
     telemetry
+}
+
+/// Detects Apple Touch ID hardware availability, enrollment, and PAM WebAuthn status.
+pub fn detect_touch_id() -> TouchIdTelemetry {
+    #[cfg(target_os = "macos")]
+    {
+        let mut info = TouchIdTelemetry::default();
+        if let Ok(out) = Command::new("bioutil").arg("-r").output() {
+            if out.status.success() {
+                let text = String::from_utf8_lossy(&out.stdout);
+                if text.contains("Biometrics for unlock: 1") || text.contains("User Touch ID configuration:") {
+                    info.is_supported = true;
+                    info.is_enrolled = true;
+                } else if text.contains("Biometrics for unlock: 0") {
+                    info.is_supported = true;
+                    info.is_enrolled = false;
+                }
+            }
+        }
+
+        if Path::new("/usr/lib/pam/pam_tid.so").exists() || Path::new("/usr/lib/pam/pam_tid.so.2").exists() {
+            info.pam_tid_available = true;
+        }
+
+        if let Ok(content) = std::fs::read_to_string("/etc/pam.d/sudo_local") {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if !trimmed.starts_with('#') && trimmed.contains("pam_tid.so") {
+                    info.sudo_local_configured = true;
+                    break;
+                }
+            }
+        }
+
+        info
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        TouchIdTelemetry::default()
+    }
 }
 
 #[cfg(target_os = "macos")]
 fn detect_fido_device_macos() -> FidoDeviceTelemetry {
     let mut telemetry = FidoDeviceTelemetry::default();
+    telemetry.touch_id = detect_touch_id();
 
     let output = Command::new("ioreg").args(["-p", "IOUSB", "-l"]).output();
     if let Ok(out) = output {
@@ -228,6 +294,8 @@ fn detect_fido_device_macos() -> FidoDeviceTelemetry {
             FidoVendor::SoloKeys
         } else if s_lower.contains("096e") || s_lower.contains("feitian") {
             FidoVendor::Feitian
+        } else if s_lower.contains("18d1") || s_lower.contains("titan") {
+            FidoVendor::GoogleTitan
         } else if s_lower.contains("fido") || s_lower.contains("u2f") {
             FidoVendor::Generic
         } else {
@@ -250,6 +318,16 @@ fn detect_fido_device_macos() -> FidoDeviceTelemetry {
             if telemetry.is_yubikey {
                 enrich_with_ykman(&mut telemetry);
             }
+        }
+    }
+
+    // If no USB security token is connected, but Touch ID is supported on this Mac:
+    if !telemetry.is_connected && telemetry.touch_id.is_supported {
+        telemetry.has_bio = true;
+        if telemetry.touch_id.is_enrolled {
+            telemetry.vendor = FidoVendor::AppleTouchId;
+            telemetry.vendor_name = "Apple".to_string();
+            telemetry.product_name = "Apple Touch ID (Built-in WebAuthn)".to_string();
         }
     }
 
@@ -290,6 +368,7 @@ fn enrich_with_ykman(telemetry: &mut FidoDeviceTelemetry) {
     }
 }
 
+#[allow(dead_code)]
 fn enrich_with_fido2_tools(telemetry: &mut FidoDeviceTelemetry) {
     if let Some(ref path) = telemetry.hid_path {
         if let Ok(out) = Command::new("fido2-token").args(["-I", path]).output() {

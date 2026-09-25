@@ -368,6 +368,17 @@ fn render_telemetry_tab(f: &mut Frame, app: &TuiApp, area: Rect) {
         ]));
     }
 
+    #[cfg(target_os = "macos")]
+    if app.telemetry.touch_id.is_supported {
+        hw_lines.push(Line::from(vec![
+            Span::styled("Apple Touch ID:  ", Style::default().bold()),
+            Span::styled(
+                if app.telemetry.touch_id.is_enrolled { "Enrolled (Built-in Biometrics)" } else { "Supported (No fingers registered)" },
+                Style::default().fg(Color::Green)
+            ),
+        ]));
+    }
+
     let left_block = Block::default()
         .title(" 🧬 Hardware & Device Telemetry ")
         .borders(Borders::ALL)
@@ -378,59 +389,98 @@ fn render_telemetry_tab(f: &mut Frame, app: &TuiApp, area: Rect) {
     f.render_widget(left_para, sub_chunks[0]);
 
     // Right card: PAM & System Health
-    let pam_sudo = if std::path::Path::new("/etc/pam.d/sudo").exists() {
-        Span::styled("Configured (pam_u2f)", Style::default().fg(Color::Green))
+    let pam_sudo_path = crate::platform::PAM_PATHS.sudo;
+    let pam_sudo = if std::path::Path::new(pam_sudo_path).exists() {
+        let content = std::fs::read_to_string(pam_sudo_path).unwrap_or_default();
+        let has_u2f = content.contains("pam_u2f.so");
+        let has_tid = content.contains("pam_tid.so");
+        if has_u2f && has_tid {
+            Span::styled("Configured (FIDO2 + Touch ID)", Style::default().fg(Color::Green).bold())
+        } else if has_u2f {
+            Span::styled("Configured (FIDO2)", Style::default().fg(Color::Green))
+        } else if has_tid {
+            Span::styled("Configured (Touch ID)", Style::default().fg(Color::Green))
+        } else {
+            Span::styled("Default / Password", Style::default().fg(Color::Yellow))
+        }
     } else {
         Span::styled("Not Configured", Style::default().fg(Color::Red))
     };
 
-    let pam_greeter = if std::path::Path::new("/etc/pam.d/cosmic-greeter").exists() {
-        Span::styled("Configured (COSMIC Greeter)", Style::default().fg(Color::Green))
+    let pam_greeter_path = crate::platform::PAM_PATHS.greeter_or_screensaver;
+    let pam_greeter = if std::path::Path::new(pam_greeter_path).exists() {
+        let content = std::fs::read_to_string(pam_greeter_path).unwrap_or_default();
+        if content.contains("pam_u2f.so") {
+            Span::styled(format!("Configured ({})", crate::platform::PAM_PATHS.greeter_label), Style::default().fg(Color::Green))
+        } else {
+            Span::styled("Default / Unlinked", Style::default().fg(Color::Yellow))
+        }
     } else {
-        Span::styled("Default / Unlinked", Style::default().fg(Color::Yellow))
+        Span::styled("Not Found", Style::default().fg(Color::Yellow))
     };
 
-    let pam_polkit = if std::path::Path::new("/etc/pam.d/polkit-1").exists() {
-        Span::styled("Configured (Polkit GUI)", Style::default().fg(Color::Green))
+    let pam_elev_path = crate::platform::PAM_PATHS.elevation_service;
+    let pam_elev = if std::path::Path::new(pam_elev_path).exists() {
+        let content = std::fs::read_to_string(pam_elev_path).unwrap_or_default();
+        if content.contains("pam_u2f.so") {
+            Span::styled(format!("Configured ({})", crate::platform::PAM_PATHS.elevation_label), Style::default().fg(Color::Green))
+        } else {
+            Span::styled("Default / System", Style::default().fg(Color::Yellow))
+        }
     } else {
         Span::styled("Default / System", Style::default().fg(Color::Yellow))
     };
 
-    let right_lines = vec![
+    let mut right_lines = vec![
         Line::from(vec![
             Span::styled("Sudo Authentication:  ", Style::default().bold()),
             pam_sudo,
         ]),
         Line::from(vec![
-            Span::styled("Lockscreen Greeter:   ", Style::default().bold()),
+            Span::styled("Lockscreen / Screen:  ", Style::default().bold()),
             pam_greeter,
         ]),
         Line::from(vec![
-            Span::styled("Polkit GUI Elevation: ", Style::default().bold()),
-            pam_polkit,
-        ]),
-        Line::from(Span::raw("")),
-        Line::from(vec![
-            Span::styled("Registered Keys:      ", Style::default().bold()),
-            Span::styled(format!("{} key(s) enrolled", app.enrolled_keys.len()), Style::default().fg(Color::Cyan).bold()),
-        ]),
-        Line::from(vec![
-            Span::styled("Primary Key Status:   ", Style::default().bold()),
-            if app.enrolled_keys.is_empty() {
-                Span::styled("None enrolled", Style::default().fg(Color::Red))
-            } else {
-                Span::styled(&app.enrolled_keys[0].credential_summary, Style::default().fg(Color::White))
-            },
-        ]),
-        Line::from(vec![
-            Span::styled("Redundancy Health:    ", Style::default().bold()),
-            if app.enrolled_keys.len() >= 2 {
-                Span::styled("Protected (Backup key paired)", Style::default().fg(Color::Green).bold())
-            } else {
-                Span::styled("Warning (Single key - pair a backup!)", Style::default().fg(Color::Yellow).bold())
-            },
+            Span::styled("Elevation / Polkit:   ", Style::default().bold()),
+            pam_elev,
         ]),
     ];
+
+    #[cfg(target_os = "macos")]
+    {
+        right_lines.push(Line::from(vec![
+            Span::styled("Touch ID WebAuthn:    ", Style::default().bold()),
+            if app.telemetry.touch_id.sudo_local_configured {
+                Span::styled("Active in sudo_local", Style::default().fg(Color::Green).bold())
+            } else if app.telemetry.touch_id.is_supported {
+                Span::styled("Available (Run 'pulsarkey touchid enable')", Style::default().fg(Color::Yellow))
+            } else {
+                Span::styled("Not Supported (Lid Closed / Desktop)", Style::default().fg(Color::DarkGray))
+            },
+        ]));
+    }
+
+    right_lines.push(Line::from(Span::raw("")));
+    right_lines.push(Line::from(vec![
+        Span::styled("Registered Keys:      ", Style::default().bold()),
+        Span::styled(format!("{} key(s) enrolled", app.enrolled_keys.len()), Style::default().fg(Color::Cyan).bold()),
+    ]));
+    right_lines.push(Line::from(vec![
+        Span::styled("Primary Key Status:   ", Style::default().bold()),
+        if app.enrolled_keys.is_empty() {
+            Span::styled("None enrolled", Style::default().fg(Color::Red))
+        } else {
+            Span::styled(&app.enrolled_keys[0].credential_summary, Style::default().fg(Color::White))
+        },
+    ]));
+    right_lines.push(Line::from(vec![
+        Span::styled("Redundancy Health:    ", Style::default().bold()),
+        if app.enrolled_keys.len() >= 2 {
+            Span::styled("Protected (Backup key paired)", Style::default().fg(Color::Green).bold())
+        } else {
+            Span::styled("Warning (Single key - pair a backup!)", Style::default().fg(Color::Yellow).bold())
+        },
+    ]));
 
     let right_block = Block::default()
         .title(" 🛡️ System PAM & Redundancy Health ")

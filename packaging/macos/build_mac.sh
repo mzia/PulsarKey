@@ -27,6 +27,13 @@ rm -rf "${BUILD_DIR}"
 mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
+# Compile native macOS Menu Bar Companion (PulsarKeyBar) if swiftc is available
+if command -v swiftc >/dev/null 2>&1; then
+    echo "🍏 Compiling native macOS Menu Bar companion (PulsarKeyBar)..."
+    swiftc -O -target arm64-apple-macos12.0 src/platform/macos/PulsarKeyBar.swift -o "${APP_BUNDLE}/Contents/MacOS/PulsarKeyBar"
+    chmod +x "${APP_BUNDLE}/Contents/MacOS/PulsarKeyBar"
+fi
+
 # Copy executables
 cp target/release/pulsarkey "${APP_BUNDLE}/Contents/MacOS/pulsarkey"
 cp target/release/pulsarkey-settings "${APP_BUNDLE}/Contents/MacOS/pulsarkey-settings"

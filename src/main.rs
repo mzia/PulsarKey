@@ -119,6 +119,18 @@ enum Commands {
     Tui,
     /// Launch the interactive TUI security dashboard (alias)
     Dashboard,
+    /// Manage background Presence Sentinel daemon (launchd on macOS, systemd on Linux)
+    Daemon {
+        /// Action: "install", "uninstall", "status", "start", or "stop"
+        #[arg(value_name = "ACTION")]
+        action: Option<String>,
+    },
+    /// Manage Apple Touch ID WebAuthn integration for PAM and sudo (macOS)
+    Touchid {
+        /// Action: "enable", "disable", or "status"
+        #[arg(value_name = "ACTION")]
+        action: Option<String>,
+    },
 }
 
 
@@ -146,12 +158,26 @@ fn main() {
         }
         Some(Commands::Applet { install_autostart }) => {
             if install_autostart {
+                #[cfg(target_os = "macos")]
+                {
+                    match platform::install_daemon_service() {
+                        Ok(msg) => println!("{} {}", "✅".green(), msg),
+                        Err(e) => eprintln!("{} Failed to install launchd service: {}", "❌".red(), e),
+                    }
+                }
+                #[cfg(not(target_os = "macos"))]
                 install_applet_autostart();
             }
             println!("🌌 Launching PulsarKey Security Applet...");
             tokio::runtime::Runtime::new()
                 .unwrap()
                 .block_on(applet::run_applet());
+        }
+        Some(Commands::Daemon { action }) => {
+            handle_daemon_cli(action);
+        }
+        Some(Commands::Touchid { action }) => {
+            handle_touchid_cli(action);
         }
         Some(Commands::Autolock { action }) => {
             handle_autolock(action);
@@ -199,6 +225,11 @@ fn main() {
                     run_interactive_selection();
                 }
             } else {
+                #[cfg(target_os = "macos")]
+                {
+                    platform::launch_gui_bundle_app();
+                }
+                #[cfg(not(target_os = "macos"))]
                 run_status();
             }
         }
@@ -301,6 +332,120 @@ fn handle_autolock(action: Option<String>) {
     }
 }
 
+fn handle_daemon_cli(action: Option<String>) {
+    let act = action.unwrap_or_else(|| "status".to_string()).to_lowercase();
+    match act.as_str() {
+        "install" => {
+            #[cfg(target_os = "macos")]
+            match platform::install_daemon_service() {
+                Ok(msg) => println!("{} {}", "✅".green(), msg),
+                Err(e) => eprintln!("{} Failed to install launchd service: {}", "❌".red(), e),
+            }
+            #[cfg(not(target_os = "macos"))]
+            install_applet_autostart();
+        }
+        "uninstall" => {
+            #[cfg(target_os = "macos")]
+            match platform::uninstall_daemon_service() {
+                Ok(msg) => println!("{} {}", "✅".green(), msg),
+                Err(e) => eprintln!("{} Failed to uninstall launchd service: {}", "❌".red(), e),
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = Command::new("systemctl").args(["--user", "disable", "--now", "pulsarkey-applet.service"]).status();
+                println!("{} Disabled systemd user service.", "✅".green());
+            }
+        }
+        "status" => {
+            let (active, desc) = platform::get_daemon_service_status();
+            println!("{}", "==================================================".cyan());
+            println!("🌌 PulsarKey Presence Sentinel Daemon Status");
+            println!("{}", "==================================================".cyan());
+            println!("Status:      {}", if active { desc.green().bold() } else { desc.yellow() });
+            #[cfg(target_os = "macos")]
+            {
+                let plist = platform::get_launchd_plist_path();
+                println!("Plist:       {}", plist.display());
+                let home = std::env::var("HOME").unwrap_or_default();
+                let log_file = format!("{}/.config/pulsarkey/daemon.log", home);
+                if Path::new(&log_file).exists() {
+                    println!("Log File:    {}", log_file);
+                }
+            }
+        }
+        "start" => {
+            #[cfg(target_os = "macos")]
+            {
+                let plist = platform::get_launchd_plist_path();
+                let _ = Command::new("launchctl").args(["load", "-w", &plist.to_string_lossy()]).status();
+                println!("{} Started PulsarKey launchd agent.", "✅".green());
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = Command::new("systemctl").args(["--user", "start", "pulsarkey-applet.service"]).status();
+                println!("{} Started PulsarKey systemd service.", "✅".green());
+            }
+        }
+        "stop" => {
+            #[cfg(target_os = "macos")]
+            {
+                let plist = platform::get_launchd_plist_path();
+                let _ = Command::new("launchctl").args(["unload", &plist.to_string_lossy()]).status();
+                println!("{} Stopped PulsarKey launchd agent.", "✅".green());
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = Command::new("systemctl").args(["--user", "stop", "pulsarkey-applet.service"]).status();
+                println!("{} Stopped PulsarKey systemd service.", "✅".green());
+            }
+        }
+        other => {
+            eprintln!("Unknown daemon action '{}'. Use: install, uninstall, status, start, or stop.", other);
+        }
+    }
+}
+
+fn handle_touchid_cli(action: Option<String>) {
+    let act = action.unwrap_or_else(|| "status".to_string()).to_lowercase();
+    match act.as_str() {
+        "status" => {
+            let tid = crate::hardware::detect_touch_id();
+            println!("{}", "==================================================".cyan());
+            println!("🍏 Apple Touch ID (WebAuthn) Status");
+            println!("{}", "==================================================".cyan());
+            println!("Hardware Sensor:     {}", if tid.is_supported { "Present".green() } else { "Not Detected (Desktop Mac or Closed Lid)".yellow() });
+            println!("Enrolled Biometrics: {}", if tid.is_enrolled { "Yes (Fingerprints Registered)".green() } else { "No fingerprints enrolled".yellow() });
+            println!("PAM Module:          {}", if tid.pam_tid_available { "Available (/usr/lib/pam/pam_tid.so)".green() } else { "Not found".yellow() });
+            println!("sudo_local Active:   {}", if tid.sudo_local_configured { "Yes (Touch ID enables sudo)".green().bold() } else { "Disabled".yellow() });
+            if !tid.sudo_local_configured && tid.is_supported {
+                println!("\n👉 To enable Touch ID for sudo alongside your security keys, run:\n   sudo pulsarkey touchid enable");
+            }
+        }
+        "enable" => {
+            ensure_root("touchid enable");
+            let tid = crate::hardware::detect_touch_id();
+            if !tid.is_supported {
+                eprintln!("{} Touch ID hardware is not detected on this system.", "⚠️".yellow());
+            }
+            match platform::configure_touch_id_pam(true) {
+                Ok(()) => println!("{} Apple Touch ID enabled in /etc/pam.d/sudo_local! Sudo will now accept Touch ID and Security Keys.", "✅".green()),
+                Err(e) => eprintln!("{} Failed to configure Touch ID in sudo_local: {}", "❌".red(), e),
+            }
+        }
+        "disable" => {
+            ensure_root("touchid disable");
+            match platform::configure_touch_id_pam(false) {
+                Ok(()) => println!("{} Apple Touch ID disabled in /etc/pam.d/sudo_local. (Security Keys remain active)", "✅".green()),
+                Err(e) => eprintln!("{} Failed to disable Touch ID in sudo_local: {}", "❌".red(), e),
+            }
+        }
+        other => {
+            eprintln!("Unknown touchid action '{}'. Use: status, enable, or disable.", other);
+        }
+    }
+}
+
+#[allow(dead_code)]
 fn install_applet_autostart() {
     let (_, user_home) = get_target_user();
     let autostart_dir = user_home.join(".config/autostart");
@@ -361,10 +506,20 @@ fn get_target_user() -> (String, PathBuf) {
         .unwrap_or_else(|_| "mzia".to_string());
 
     let home_dir = match std::env::var("SUDO_USER") {
-        Ok(ref sudo_user) => PathBuf::from(format!("/home/{}", sudo_user)),
+        Ok(ref sudo_user) => {
+            #[cfg(target_os = "macos")]
+            { PathBuf::from(format!("/Users/{}", sudo_user)) }
+            #[cfg(not(target_os = "macos"))]
+            { PathBuf::from(format!("/home/{}", sudo_user)) }
+        }
         Err(_) => std::env::var("HOME")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from(format!("/home/{}", username))),
+            .unwrap_or_else(|_| {
+                #[cfg(target_os = "macos")]
+                { PathBuf::from(format!("/Users/{}", username)) }
+                #[cfg(not(target_os = "macos"))]
+                { PathBuf::from(format!("/home/{}", username)) }
+            }),
     };
 
     (username, home_dir)
@@ -387,40 +542,66 @@ fn run_setup(reinstall: bool) {
 
     // 1. Verify/Install Packages
     println!("\n{}", "📦 Step 1: Checking required packages...".bold());
-    let has_pamu2fcfg = Path::new("/usr/bin/pamu2fcfg").exists();
-    let has_pam_u2f = Path::new("/usr/lib/x86_64-linux-gnu/security/pam_u2f.so").exists()
-        || Path::new("/lib/x86_64-linux-gnu/security/pam_u2f.so").exists()
-        || Path::new("/lib/security/pam_u2f.so").exists();
+    #[cfg(target_os = "macos")]
+    {
+        let has_pamu2fcfg = Command::new("which").arg("pamu2fcfg").output().map(|o| o.status.success()).unwrap_or(false);
+        let has_pam_u2f = Path::new("/opt/homebrew/lib/pam/pam_u2f.so").exists()
+            || Path::new("/usr/local/lib/pam/pam_u2f.so").exists()
+            || Path::new("/opt/homebrew/lib/security/pam_u2f.so").exists()
+            || Path::new("/usr/local/lib/security/pam_u2f.so").exists()
+            || Path::new("/usr/lib/pam/pam_u2f.so").exists();
 
-    if !has_pamu2fcfg || !has_pam_u2f || reinstall {
-        println!("Installing libpam-u2f, pamu2fcfg, and yubikey-manager via apt...");
-        let status = Command::new("apt")
-            .args(["install", "-y", "libpam-u2f", "pamu2fcfg", "yubikey-manager"])
-            .status();
-
-        if let Err(e) = status {
-            eprintln!("{} Failed to invoke apt: {}", "❌".red(), e);
-            std::process::exit(1);
+        if !has_pamu2fcfg || !has_pam_u2f || reinstall {
+            println!("Please install pam-u2f and ykman via Homebrew if not already installed:\n  brew install pam-u2f ykman");
+        } else {
+            println!("{} All required macOS PAM and FIDO2 packages are installed.", "✅".green());
         }
-    } else {
-        println!("{} All required PAM and FIDO2 packages are installed.", "✅".green());
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let has_pamu2fcfg = Path::new("/usr/bin/pamu2fcfg").exists();
+        let has_pam_u2f = Path::new("/usr/lib/x86_64-linux-gnu/security/pam_u2f.so").exists()
+            || Path::new("/lib/x86_64-linux-gnu/security/pam_u2f.so").exists()
+            || Path::new("/lib/security/pam_u2f.so").exists();
+
+        if !has_pamu2fcfg || !has_pam_u2f || reinstall {
+            println!("Installing libpam-u2f, pamu2fcfg, and yubikey-manager via apt...");
+            let status = Command::new("apt")
+                .args(["install", "-y", "libpam-u2f", "pamu2fcfg", "yubikey-manager"])
+                .status();
+
+            if let Err(e) = status {
+                eprintln!("{} Failed to invoke apt: {}", "❌".red(), e);
+                std::process::exit(1);
+            }
+        } else {
+            println!("{} All required PAM and FIDO2 packages are installed.", "✅".green());
+        }
     }
 
-    // 2. Hardware Udev Rules for cosmic-greeter
-    println!("\n{}", "⚙️  Step 2: Configuring udev hardware rules...".bold());
-    let udev_content = "# PulsarKey Universal FIDO2 Security Key rules for cosmic-greeter\n\
+    // 2. Hardware Access Rules
+    #[cfg(target_os = "macos")]
+    {
+        println!("\n{}", "⚙️  Step 2: Checking hardware access rules...".bold());
+        println!("{} Native macOS IOKit USB HID subsystem active (udev rules not required).", "✅".green());
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        println!("\n{}", "⚙️  Step 2: Configuring udev hardware rules...".bold());
+        let udev_content = "# PulsarKey Universal FIDO2 Security Key rules for cosmic-greeter\n\
 KERNEL==\"hidraw*\", SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"1050|20a0|1209|096e|18d1|2021|2fc6\", MODE=\"0660\", GROUP=\"cosmic-greeter\"\n\
 KERNEL==\"hidraw*\", SUBSYSTEM==\"hidraw\", ENV{ID_SECURITY_TOKEN}==\"1\", MODE=\"0660\", GROUP=\"cosmic-greeter\"\n";
-    if Path::new(LEGACY_UDEV_RULE_FILE).exists() {
-        let _ = fs::remove_file(LEGACY_UDEV_RULE_FILE);
+        if Path::new(LEGACY_UDEV_RULE_FILE).exists() {
+            let _ = fs::remove_file(LEGACY_UDEV_RULE_FILE);
+        }
+        if let Err(e) = fs::write(UDEV_RULE_FILE, udev_content) {
+            eprintln!("{} Failed writing udev rules: {}", "❌".red(), e);
+            std::process::exit(1);
+        }
+        let _ = Command::new("udevadm").args(["control", "--reload-rules"]).status();
+        let _ = Command::new("udevadm").args(["trigger"]).status();
+        println!("{} udev rule installed at {}", "✅".green(), UDEV_RULE_FILE.cyan());
     }
-    if let Err(e) = fs::write(UDEV_RULE_FILE, udev_content) {
-        eprintln!("{} Failed writing udev rules: {}", "❌".red(), e);
-        std::process::exit(1);
-    }
-    let _ = Command::new("udevadm").args(["control", "--reload-rules"]).status();
-    let _ = Command::new("udevadm").args(["trigger"]).status();
-    println!("{} udev rule installed at {}", "✅".green(), UDEV_RULE_FILE.cyan());
 
     // 3. Central Directory
     println!("\n{}", "📁 Step 3: Preparing credential storage...".bold());
@@ -540,13 +721,38 @@ KERNEL==\"hidraw*\", SUBSYSTEM==\"hidraw\", ENV{ID_SECURITY_TOKEN}==\"1\", MODE=
         update_pam_file(platform::PAM_PATHS.elevation_service, &polkit_pam_line);
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        let tid = crate::hardware::detect_touch_id();
+        if tid.is_supported {
+            println!("\n{}", "🍏 Step 7: Apple Touch ID (WebAuthn) Integration".bold());
+            println!("Apple Touch ID biometric hardware was detected on this Mac.");
+            println!("Configuring /etc/pam.d/sudo_local with Touch ID alongside Security Keys...");
+            let _ = platform::configure_touch_id_pam(true);
+            println!("{} Touch ID and Security Keys are both active for sudo!", "✅".green());
+        }
+
+        println!("\n{}", "🛡️ Step 8: Background Presence Sentinel".bold());
+        println!("To automatically lock your Mac when you remove your Security Key, install the launchd agent:");
+        println!("   {}", "pulsarkey daemon install".cyan());
+    }
+
     println!("\n{}", "==================================================".green());
     println!("{}", "🎉 Configuration finished successfully!".bold().green());
     println!("{}", "==================================================".green());
     println!("Verification Steps:");
-    println!("  1. Sudo CLI:             {}", "sudo -k && sudo whoami".bold().cyan());
-    println!("  2. Polkit/Auth dialogs:  {}", "pkexec whoami".bold().cyan());
-    println!("  3. Lockscreen:           Lock desktop and press Space then Enter.");
+    #[cfg(target_os = "macos")]
+    {
+        println!("  1. Sudo CLI:             {}", "sudo -k && sudo whoami".bold().cyan());
+        println!("  2. Screen Lock:          Wake screensaver and scan fingerprint or touch Security Key.");
+        println!("  3. Menu Bar Applet:      {}", "pulsarkey applet".bold().cyan());
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        println!("  1. Sudo CLI:             {}", "sudo -k && sudo whoami".bold().cyan());
+        println!("  2. Polkit/Auth dialogs:  {}", "pkexec whoami".bold().cyan());
+        println!("  3. Lockscreen:           Lock desktop and press Space then Enter.");
+    }
 }
 
 fn enroll_key(username_opt: Option<&str>, user_verification: bool) -> Result<String, String> {
@@ -805,6 +1011,28 @@ fn run_status() {
     // Check PAM elevation service (polkit or authorization)
     check_pam_status(platform::PAM_PATHS.elevation_label, platform::PAM_PATHS.elevation_service);
 
+    // Check Apple Touch ID / WebAuthn & Daemon status on macOS
+    #[cfg(target_os = "macos")]
+    {
+        let tid = crate::hardware::detect_touch_id();
+        println!("\nApple Platform Biometrics (WebAuthn):");
+        if tid.is_supported {
+            println!(
+                "  Hardware Sensor:       {}",
+                if tid.is_enrolled { "Present & Enrolled".green() } else { "Present (No fingerprints enrolled)".yellow() }
+            );
+            println!(
+                "  sudo_local Touch ID:   {}",
+                if tid.sudo_local_configured { "Active (pam_tid.so enabled)".green().bold() } else { "Disabled (Run 'sudo pulsarkey touchid enable')".yellow() }
+            );
+        } else {
+            println!("  Hardware Sensor:       {}", "Not Detected (Desktop Mac or Closed Lid)".dimmed());
+        }
+
+        let (daemon_active, daemon_desc) = platform::get_daemon_service_status();
+        println!("  Background Sentinel:   {}", if daemon_active { daemon_desc.green().bold() } else { daemon_desc.yellow() });
+    }
+
     // Check Security Profile
     let current_profile = profiles::get_current_profile();
     println!("Security Profile:        {}", current_profile.display_name().bold().green());
@@ -861,7 +1089,7 @@ fn run_status() {
             println!("  Firmware: {}", fw);
         }
     } else {
-        println!("  {}", "No Security Key detected.".dimmed());
+        println!("  {}", dev.product_name.dimmed());
     }
     println!("{}", "==================================================".cyan());
 }
@@ -874,14 +1102,21 @@ fn check_pam_status(name: &str, path: &str) {
     }
 
     if let Ok(content) = fs::read_to_string(p) {
-        if let Some(line) = content.lines().find(|l| l.contains("pam_u2f.so")) {
-            let is_interactive = line.contains("interactive");
+        let has_u2f = content.lines().any(|l| l.contains("pam_u2f.so"));
+        let has_tid = content.lines().any(|l| !l.trim().starts_with('#') && l.contains("pam_tid.so"));
+
+        if has_u2f && has_tid {
+            println!("PAM {:<20} {}", format!("{}:", name), "FIDO2 + Apple Touch ID Enabled".green().bold());
+        } else if has_u2f {
+            let is_interactive = content.lines().any(|l| l.contains("interactive"));
             println!(
                 "PAM {:<20} {} (Interactive: {})",
                 format!("{}:", name),
                 "FIDO2 Enabled".green(),
                 if is_interactive { "Yes".green() } else { "No (Direct touch)".yellow() }
             );
+        } else if has_tid {
+            println!("PAM {:<20} {}", format!("{}:", name), "Apple Touch ID Enabled".green());
         } else {
             println!("PAM {:<20} {}", format!("{}:", name), "Standard (Password only)".yellow());
         }

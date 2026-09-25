@@ -4,3 +4,6 @@ packaging/*.deb
 *.log
 .DS_Store
 dist/macos/
+dist/*.dmg
+dist/*.pkg
+
