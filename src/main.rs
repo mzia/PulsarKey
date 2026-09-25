@@ -131,6 +131,18 @@ enum Commands {
         #[arg(value_name = "ACTION")]
         action: Option<String>,
     },
+    /// Check for and install software updates from GitHub
+    Update {
+        /// Only check for updates without installing
+        #[arg(short, long)]
+        check: bool,
+        /// Force re-checking GitHub API bypassing cache
+        #[arg(short, long)]
+        force: bool,
+        /// Automatically accept and install update if available
+        #[arg(short, long)]
+        yes: bool,
+    },
 }
 
 
@@ -173,6 +185,9 @@ fn main() {
         }
         Some(Commands::Touchid { action }) => {
             handle_touchid_cli(action);
+        }
+        Some(Commands::Update { check, force, yes }) => {
+            updater::handle_update_cli(check, force, yes);
         }
         Some(Commands::Autolock { action }) => {
             handle_autolock(action);
@@ -250,9 +265,10 @@ fn run_interactive_selection() {
     println!("  {}  🛟 Emergency Recovery Kit & Runbook", "[5]".bold().green());
     println!("  {}  🔑 Hardware SSH & Git Signing Setup", "[6]".bold().green());
     println!("  {}  🛡️  Presence Sentinel Auto-Lock", "[7]".bold().green());
+    println!("  {}  🚀 Software Updates & Upgrade", "[u]".bold().cyan());
     println!("  {}  🚪 Exit", "[q]".bold().yellow());
     println!("{}", "==================================================".cyan());
-    print!("Selection [1-7, t, or Enter for Status]: ");
+    print!("Selection [1-7, t, u, or Enter for Status]: ");
     let _ = io::stdout().flush();
 
     let mut input = String::new();
@@ -288,6 +304,10 @@ fn run_interactive_selection() {
             "7" | "autolock" => {
                 println!();
                 handle_autolock(None);
+            }
+            "u" | "update" | "upgrade" => {
+                println!();
+                updater::handle_update_cli(false, false, false);
             }
             "gui" | "g" | "settings" => {
                 println!();
@@ -1033,6 +1053,24 @@ fn run_status() {
             "Not generated (Run 'pulsarkey rescue generate')".yellow()
         }
     );
+
+    // Check Software Updates
+    if let Some(update_info) = updater::get_cached_update_info() {
+        if update_info.is_update_available {
+            println!(
+                "Software Update:         {} (v{} -> v{}, run 'pulsarkey update')",
+                "Update Available".yellow().bold(),
+                update_info.current_version,
+                update_info.latest_version.green().bold()
+            );
+        } else {
+            println!("Software Update:         {} (v{})", "Up to date".green(), update_info.current_version);
+        }
+    } else {
+        updater::spawn_background_update_check();
+        println!("Software Update:         {} (Checking in background...)", env!("CARGO_PKG_VERSION").cyan());
+    }
+
 
     // Check connected Security Key
     println!("\nHardware Detection:");

@@ -16,6 +16,7 @@ class PulsarKeyBarDelegate: NSObject, NSApplicationDelegate {
 
     // Menu Item References
     private var headerItem: NSMenuItem!
+    private var updateItem: NSMenuItem!
     private var deviceItem: NSMenuItem!
     private var touchIdItem: NSMenuItem!
     private var sentinelItem: NSMenuItem!
@@ -25,6 +26,7 @@ class PulsarKeyBarDelegate: NSObject, NSApplicationDelegate {
     private var autolockEnabled: Bool = false
     private var lastDeviceName: String = "Scanning..."
     private var touchIdActive: Bool = false
+    private var lastUpdateCheck: Date = Date.distantPast
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Run as menu bar accessory (no Dock icon or Cmd-Tab switcher)
@@ -68,6 +70,15 @@ class PulsarKeyBarDelegate: NSObject, NSApplicationDelegate {
             attributes: [.font: NSFont.boldSystemFont(ofSize: 13)]
         )
         menu.addItem(headerItem)
+
+        updateItem = NSMenuItem(
+            title: "🚀 Update Available (Click to Upgrade)",
+            action: #selector(openUpdate),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+        updateItem.isHidden = true
+        menu.addItem(updateItem)
 
         deviceItem = NSMenuItem(title: "🔑 Token: Scanning...", action: nil, keyEquivalent: "")
         deviceItem.isEnabled = false
@@ -132,9 +143,27 @@ class PulsarKeyBarDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func checkCachedUpdate() -> String? {
+        let updatePath = ("~/.config/pulsarkey/update_info.json" as NSString).expandingTildeInPath
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: updatePath)),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let isAvailable = json["is_update_available"] as? Bool, isAvailable,
+               let latestVer = json["latest_version"] as? String {
+                return latestVer
+            }
+        }
+        return nil
+    }
+
     private func refreshStatus() {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
+
+            // Periodically check GitHub for updates (every 30 mins)
+            if Date().timeIntervalSince(self.lastUpdateCheck) > 1800 {
+                self.lastUpdateCheck = Date()
+                self.runPulsarkeyCommand(args: ["update", "--check"])
+            }
 
             // 1. Detect USB Security Key via ioreg
             let (connected, devName) = self.detectUsbKey()
@@ -142,8 +171,11 @@ class PulsarKeyBarDelegate: NSObject, NSApplicationDelegate {
             // 2. Detect Touch ID via bioutil & sudo_local
             let touchIdStatus = self.detectTouchId()
 
+            // 3. Detect cached software update
+            let updateVersion = self.checkCachedUpdate()
+
             DispatchQueue.main.async {
-                self.updateUI(isConnected: connected, deviceName: devName, touchId: touchIdStatus)
+                self.updateUI(isConnected: connected, deviceName: devName, touchId: touchIdStatus, updateVersion: updateVersion)
             }
         }
     }
@@ -220,7 +252,7 @@ class PulsarKeyBarDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func updateUI(isConnected: Bool, deviceName: String, touchId: String) {
+    private func updateUI(isConnected: Bool, deviceName: String, touchId: String, updateVersion: String?) {
         // Presence Sentinel check: key was pulled!
         if wasConnected && !isConnected && autolockEnabled {
             postNotification(title: "🛡️ PulsarKey Sentinel", body: "Hardware token removed. Locking Mac screen...")
@@ -229,6 +261,13 @@ class PulsarKeyBarDelegate: NSObject, NSApplicationDelegate {
 
         wasConnected = isConnected
         lastDeviceName = deviceName
+
+        if let updateVer = updateVersion {
+            updateItem.title = "🚀 Update Available: v\(updateVer) (Click to Upgrade)"
+            updateItem.isHidden = false
+        } else {
+            updateItem.isHidden = true
+        }
 
         if isConnected {
             deviceItem.title = "🔑 Key: \(deviceName) (Online)"
@@ -243,6 +282,10 @@ class PulsarKeyBarDelegate: NSObject, NSApplicationDelegate {
         }
 
         touchIdItem.title = "🍏 Touch ID: \(touchId)"
+    }
+
+    @objc private func openUpdate() {
+        launchInTerminal(command: "pulsarkey update")
     }
 
     @objc private func toggleSentinel() {

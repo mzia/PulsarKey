@@ -13,6 +13,7 @@ pub mod profiles;
 pub mod rescue;
 pub mod ssh_setup;
 pub mod tui;
+pub mod updater;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum BioCommands {
