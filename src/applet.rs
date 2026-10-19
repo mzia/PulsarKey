@@ -235,8 +235,7 @@ impl Tray for PulsarKeyApplet {
     }
 
     fn icon_theme_path(&self) -> String {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/mzia".to_string());
-        format!("{}/.local/share/icons/hicolor", home)
+        "".into()
     }
 
     fn icon_pixmap(&self) -> Vec<Icon> {
